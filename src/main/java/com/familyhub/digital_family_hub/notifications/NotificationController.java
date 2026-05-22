@@ -1,9 +1,7 @@
 package com.familyhub.digital_family_hub.notifications;
 
+import com.familyhub.digital_family_hub.shared.api.ApiResponse;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -15,67 +13,32 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {
 
-    private final InAppNotificationRepository notifications;
+    private final NotificationService notificationService;
 
-    public NotificationController(InAppNotificationRepository notifications) {
-        this.notifications = notifications;
+    public NotificationController(NotificationService notificationService) {
+        this.notificationService = notificationService;
     }
 
     @GetMapping
-    public List<NotificationResponse> listNotifications() {
-        return notifications.findAll().stream().map(NotificationResponse::from).toList();
+    public ApiResponse<List<NotificationDTO.Response>> listNotifications() {
+        return ApiResponse.ok(notificationService.listNotifications());
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public NotificationResponse createNotification(@Valid @RequestBody CreateNotificationRequest request) {
-        InAppNotification notification = new InAppNotification();
-        notification.setType(request.type());
-        notification.setTitle(request.title());
-        notification.setBody(request.body());
-        notification.setScheduledFor(request.scheduledFor());
-        return NotificationResponse.from(notifications.save(notification));
+    public ApiResponse<NotificationDTO.Response> createNotification(
+        @Valid @RequestBody NotificationDTO.Request request
+    ) {
+        return ApiResponse.created(notificationService.createNotification(request));
     }
 
     @PatchMapping("/{id}/read")
-    public NotificationResponse markRead(@PathVariable UUID id) {
-        InAppNotification notification = notifications.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found"));
-        notification.setReadAt(Instant.now());
-        return NotificationResponse.from(notifications.save(notification));
-    }
-
-    public record CreateNotificationRequest(
-        @NotNull NotificationType type,
-        @NotBlank String title,
-        @NotBlank String body,
-        Instant scheduledFor
-    ) {
-    }
-
-    public record NotificationResponse(
-        UUID id,
-        NotificationType type,
-        String title,
-        String body,
-        Instant scheduledFor,
-        Instant readAt
-    ) {
-        static NotificationResponse from(InAppNotification notification) {
-            return new NotificationResponse(
-                notification.getId(),
-                notification.getType(),
-                notification.getTitle(),
-                notification.getBody(),
-                notification.getScheduledFor(),
-                notification.getReadAt()
-            );
-        }
+    public ApiResponse<NotificationDTO.Response> markRead(@PathVariable UUID id) {
+        return ApiResponse.ok(notificationService.markRead(id));
     }
 }

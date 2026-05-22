@@ -1,0 +1,9 @@
+spring:
+  cache:
+    type: redis
+  jpa:
+    show-sql: false
+
+hometree:
+  auth:
+    secure-cookies: true

@@ -12,5 +12,11 @@ public interface MemoryPostRepository extends JpaRepository<MemoryPost, UUID> {
 
     List<MemoryPost> findByOccurredAtBetweenOrderByOccurredAtDesc(Instant startInclusive, Instant endExclusive);
 
+    Page<MemoryPost> findByOccurredAtBetween(Instant startInclusive, Instant endExclusive, Pageable pageable);
+
     List<MemoryPost> findByEventTypeOrderByOccurredAtDesc(EventType eventType);
+
+    Page<MemoryPost> findByEventType(EventType eventType, Pageable pageable);
+
+    Page<MemoryPost> findByAuthorId(UUID authorId, Pageable pageable);
 }

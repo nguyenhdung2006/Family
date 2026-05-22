@@ -1,0 +1,9 @@
+target/
+.git/
+.idea/
+.vscode/
+*.log
+.env
+.env.*
+client_secret_*.json
+*credentials*.json
