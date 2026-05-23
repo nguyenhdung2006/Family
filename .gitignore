@@ -36,5 +36,18 @@ build/
 .env
 .env.*
 !.env.example
+frontend/.env.local
+frontend/.env.*
+!frontend/.env.example
 client_secret_*.json
+client_secret*.json
 *credentials*.json
+*.pem
+*.key
+
+### Frontend ###
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+frontend/next-env.d.ts
