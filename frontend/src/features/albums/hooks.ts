@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { attachAlbumMedia, createAlbum, listAlbumMedia, listAlbums, uploadMedia } from "@/features/albums/api";
+import { attachAlbumMedia, createAlbum, listAlbumMedia, listAlbums, updateAlbum, uploadMedia } from "@/features/albums/api";
 import type { AlbumCategory } from "@/features/albums/types";
 import { queryKeys } from "@/lib/api/queryKeys";
 
@@ -28,6 +28,14 @@ export function useCreateAlbum() {
   });
 }
 
+export function useUpdateAlbum(albumId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof updateAlbum>[1]) => updateAlbum(albumId, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["albums"] })
+  });
+}
+
 export function useAttachAlbumMedia(albumId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -40,5 +48,7 @@ export function useAttachAlbumMedia(albumId: string) {
 }
 
 export function useUploadMedia() {
-  return useMutation({ mutationFn: uploadMedia });
+  return useMutation({
+    mutationFn: (input: { file: File; onProgress?: (progress: number) => void }) => uploadMedia(input.file, input.onProgress)
+  });
 }

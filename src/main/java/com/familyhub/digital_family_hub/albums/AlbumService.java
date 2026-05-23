@@ -37,9 +37,15 @@ public class AlbumService {
     @Transactional
     public AlbumDTO.Response createAlbum(AlbumDTO.Request request) {
         Album album = new Album();
-        album.setTitle(request.title());
-        album.setDescription(request.description());
-        album.setCategory(request.category());
+        applyAlbumRequest(album, request);
+        return AlbumDTO.Response.from(albums.save(album));
+    }
+
+    @Transactional
+    public AlbumDTO.Response updateAlbum(UUID albumId, AlbumDTO.Request request) {
+        Album album = albums.findById(albumId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Album not found"));
+        applyAlbumRequest(album, request);
         return AlbumDTO.Response.from(albums.save(album));
     }
 
@@ -66,5 +72,11 @@ public class AlbumService {
 
     private int normalizeSize(int size) {
         return Math.max(1, Math.min(size, 100));
+    }
+
+    private void applyAlbumRequest(Album album, AlbumDTO.Request request) {
+        album.setTitle(request.title());
+        album.setDescription(request.description());
+        album.setCategory(request.category());
     }
 }

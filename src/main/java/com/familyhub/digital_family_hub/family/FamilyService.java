@@ -59,16 +59,19 @@ public class FamilyService {
     @CacheEvict(cacheNames = "family-members", allEntries = true)
     public FamilyMemberDTO.Response createMember(FamilyMemberDTO.Request request) {
         FamilyMember member = new FamilyMember();
-        member.setFullName(request.fullName());
-        member.setBirthDate(request.birthDate());
-        member.setDeathDate(request.deathDate());
-        member.setRoleInFamily(request.roleInFamily());
-        member.setBranch(request.branch());
-        member.setAvatarUrl(request.avatarUrl());
-        member.setBiography(request.biography());
-        member.setGenerationLevel(request.generationLevel());
+        applyMemberRequest(member, request);
         FamilyMember saved = members.save(member);
         auditLogService.dataChange("create", "family_member", saved.getId());
+        return FamilyMemberDTO.Response.from(saved);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = "family-members", allEntries = true)
+    public FamilyMemberDTO.Response updateMember(UUID id, FamilyMemberDTO.Request request) {
+        FamilyMember member = findMember(id, "Family member not found");
+        applyMemberRequest(member, request);
+        FamilyMember saved = members.save(member);
+        auditLogService.dataChange("update", "family_member", saved.getId());
         return FamilyMemberDTO.Response.from(saved);
     }
 
@@ -82,17 +85,58 @@ public class FamilyService {
     @Transactional
     @CacheEvict(cacheNames = "family-members", allEntries = true)
     public RelationshipDTO.Response createRelationship(RelationshipDTO.Request request) {
+        validateRelationshipRequest(request);
         FamilyMember source = findMember(request.sourceMemberId(), "Source member not found");
         FamilyMember target = findMember(request.targetMemberId(), "Target member not found");
 
         FamilyRelationship relationship = new FamilyRelationship();
+        applyRelationshipRequest(relationship, source, target, request);
+        FamilyRelationship saved = relationships.save(relationship);
+        auditLogService.dataChange("create", "family_relationship", saved.getId());
+        return RelationshipDTO.Response.from(saved);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = "family-members", allEntries = true)
+    public RelationshipDTO.Response updateRelationship(UUID id, RelationshipDTO.Request request) {
+        validateRelationshipRequest(request);
+        FamilyRelationship relationship = relationships.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Family relationship not found"));
+        FamilyMember source = findMember(request.sourceMemberId(), "Source member not found");
+        FamilyMember target = findMember(request.targetMemberId(), "Target member not found");
+        applyRelationshipRequest(relationship, source, target, request);
+        FamilyRelationship saved = relationships.save(relationship);
+        auditLogService.dataChange("update", "family_relationship", saved.getId());
+        return RelationshipDTO.Response.from(saved);
+    }
+
+    private void applyMemberRequest(FamilyMember member, FamilyMemberDTO.Request request) {
+        member.setFullName(request.fullName());
+        member.setBirthDate(request.birthDate());
+        member.setDeathDate(request.deathDate());
+        member.setRoleInFamily(request.roleInFamily());
+        member.setBranch(request.branch());
+        member.setAvatarUrl(request.avatarUrl());
+        member.setBiography(request.biography());
+        member.setGenerationLevel(request.generationLevel());
+    }
+
+    private void applyRelationshipRequest(
+        FamilyRelationship relationship,
+        FamilyMember source,
+        FamilyMember target,
+        RelationshipDTO.Request request
+    ) {
         relationship.setSourceMember(source);
         relationship.setTargetMember(target);
         relationship.setType(request.type());
         relationship.setNotes(request.notes());
-        FamilyRelationship saved = relationships.save(relationship);
-        auditLogService.dataChange("create", "family_relationship", saved.getId());
-        return RelationshipDTO.Response.from(saved);
+    }
+
+    private void validateRelationshipRequest(RelationshipDTO.Request request) {
+        if (request.sourceMemberId().equals(request.targetMemberId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Relationship members must be different");
+        }
     }
 
     private FamilyMember findMember(UUID id, String message) {

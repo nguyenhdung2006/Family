@@ -35,3 +35,5 @@ export type CreateChatRoomInput = {
   type: ChatRoomType;
   branch?: FamilyBranch | null;
 };
+
+export type UpdateChatRoomInput = CreateChatRoomInput;

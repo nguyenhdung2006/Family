@@ -7,6 +7,8 @@ import {
   createRelationship,
   listFamilyMembers,
   listRelationships,
+  updateFamilyMember,
+  updateRelationship,
   type FamilyMemberFilters
 } from "@/features/family/api";
 
@@ -35,10 +37,26 @@ export function useCreateFamilyMember() {
   });
 }
 
+export function useUpdateFamilyMember(memberId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof updateFamilyMember>[1]) => updateFamilyMember(memberId, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["family"] })
+  });
+}
+
 export function useCreateFamilyRelationship() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createRelationship,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["family"] })
+  });
+}
+
+export function useUpdateFamilyRelationship(relationshipId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof updateRelationship>[1]) => updateRelationship(relationshipId, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["family"] })
   });
 }

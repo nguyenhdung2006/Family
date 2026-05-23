@@ -16,3 +16,5 @@ export type CreateRecipeInput = {
   videoUrl?: string | null;
   notesFromElders?: string | null;
 };
+
+export type UpdateRecipeInput = CreateRecipeInput;

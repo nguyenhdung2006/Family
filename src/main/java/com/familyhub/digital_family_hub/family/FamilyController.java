@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -52,6 +53,14 @@ public class FamilyController {
         return ApiResponse.created(familyService.createMember(request));
     }
 
+    @PutMapping("/members/{id}")
+    public ApiResponse<FamilyMemberDTO.Response> updateMember(
+        @PathVariable UUID id,
+        @Valid @RequestBody FamilyMemberDTO.Request request
+    ) {
+        return ApiResponse.ok(familyService.updateMember(id, request));
+    }
+
     @GetMapping("/members/{id}/relationships")
     public ApiResponse<List<RelationshipDTO.Response>> listRelationships(@PathVariable UUID id) {
         return ApiResponse.ok(familyService.listRelationships(id));
@@ -61,5 +70,13 @@ public class FamilyController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<RelationshipDTO.Response> createRelationship(@Valid @RequestBody RelationshipDTO.Request request) {
         return ApiResponse.created(familyService.createRelationship(request));
+    }
+
+    @PutMapping("/relationships/{id}")
+    public ApiResponse<RelationshipDTO.Response> updateRelationship(
+        @PathVariable UUID id,
+        @Valid @RequestBody RelationshipDTO.Request request
+    ) {
+        return ApiResponse.ok(familyService.updateRelationship(id, request));
     }
 }

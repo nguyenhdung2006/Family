@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,6 +39,14 @@ public class AlbumController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<AlbumDTO.Response> createAlbum(@Valid @RequestBody AlbumDTO.Request request) {
         return ApiResponse.created(albumService.createAlbum(request));
+    }
+
+    @PutMapping("/{albumId}")
+    public ApiResponse<AlbumDTO.Response> updateAlbum(
+        @PathVariable UUID albumId,
+        @Valid @RequestBody AlbumDTO.Request request
+    ) {
+        return ApiResponse.ok(albumService.updateAlbum(albumId, request));
     }
 
     @GetMapping("/{albumId}/media")

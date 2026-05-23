@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api/client";
-import type { CreateTributeInput, MemorialMember, Tribute } from "@/features/memorial/types";
+import type { CreateTributeInput, MemorialMember, Tribute, UpdateTributeInput } from "@/features/memorial/types";
 
 export function listMemorialMembers() {
   return apiFetch<MemorialMember[]>("/api/memorials");
@@ -12,6 +12,13 @@ export function listTributes(memberId: string) {
 export function createTribute(memberId: string, input: CreateTributeInput) {
   return apiFetch<Tribute>(`/api/memorials/${memberId}/tributes`, {
     method: "POST",
+    body: input
+  });
+}
+
+export function updateTribute(memberId: string, tributeId: string, input: UpdateTributeInput) {
+  return apiFetch<Tribute>(`/api/memorials/${memberId}/tributes/${tributeId}`, {
+    method: "PUT",
     body: input
   });
 }

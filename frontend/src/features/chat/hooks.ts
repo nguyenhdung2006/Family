@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createRoom, listMessages, listRooms, markMessageSeen, sendMessage } from "@/features/chat/api";
+import { createRoom, listMessages, listRooms, markMessageSeen, sendMessage, updateRoom } from "@/features/chat/api";
 import type { ChatMessage, SendMessageInput } from "@/features/chat/types";
 import type { CurrentUser } from "@/features/auth/types";
 import { queryKeys } from "@/lib/api/queryKeys";
@@ -70,6 +70,17 @@ export function useCreateChatRoom() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createRoom,
+    onSuccess: (room) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.chatRooms });
+      return room;
+    }
+  });
+}
+
+export function useUpdateChatRoom(roomId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof updateRoom>[1]) => updateRoom(roomId, input),
     onSuccess: (room) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.chatRooms });
       return room;

@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -40,5 +41,14 @@ public class MemorialController {
         @Valid @RequestBody MemorialDTO.TributeRequest request
     ) {
         return ApiResponse.created(memorialService.createTribute(memberId, request));
+    }
+
+    @PutMapping("/{memberId}/tributes/{tributeId}")
+    public ApiResponse<MemorialDTO.TributeResponse> updateTribute(
+        @PathVariable UUID memberId,
+        @PathVariable UUID tributeId,
+        @Valid @RequestBody MemorialDTO.TributeRequest request
+    ) {
+        return ApiResponse.ok(memorialService.updateTribute(memberId, tributeId, request));
     }
 }

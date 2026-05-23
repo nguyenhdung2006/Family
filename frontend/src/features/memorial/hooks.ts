@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createTribute, listMemorialMembers, listTributes } from "@/features/memorial/api";
+import { createTribute, listMemorialMembers, listTributes, updateTribute } from "@/features/memorial/api";
 import { queryKeys } from "@/lib/api/queryKeys";
 
 export function useMemorialMembers() {
@@ -23,6 +23,14 @@ export function useCreateTribute(memberId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: Parameters<typeof createTribute>[1]) => createTribute(memberId, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memorialTributes(memberId) })
+  });
+}
+
+export function useUpdateTribute(memberId: string, tributeId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof updateTribute>[2]) => updateTribute(memberId, tributeId, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memorialTributes(memberId) })
   });
 }

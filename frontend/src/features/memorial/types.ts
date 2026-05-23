@@ -15,3 +15,5 @@ export type CreateTributeInput = {
   title: string;
   story: string;
 };
+
+export type UpdateTributeInput = CreateTributeInput;

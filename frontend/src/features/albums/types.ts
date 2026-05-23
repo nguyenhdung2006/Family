@@ -16,11 +16,21 @@ export type AlbumMedia = {
   capturedAt: string | null;
 };
 
+export type MediaUploadResponse = {
+  url: string;
+  storagePublicId: string;
+  mediaType: MediaType;
+  contentType: string;
+  sizeBytes: number;
+};
+
 export type CreateAlbumInput = {
   title: string;
   description?: string | null;
   category: AlbumCategory;
 };
+
+export type UpdateAlbumInput = CreateAlbumInput;
 
 export type AttachAlbumMediaInput = {
   url: string;

@@ -1,30 +1,53 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Flame, Heart, Plus } from "lucide-react";
+import { Flame, Heart, Pencil, Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { FormError, FormHint } from "@/components/forms/form-status";
 import { Input, Textarea } from "@/components/ui/input";
-import { useCreateTribute, useMemorialMembers, useTributes } from "@/features/memorial/hooks";
+import { useCreateTribute, useMemorialMembers, useTributes, useUpdateTribute } from "@/features/memorial/hooks";
+import type { Tribute } from "@/features/memorial/types";
 
 export function MemorialView() {
   const { data: members = [], isLoading, error } = useMemorialMembers();
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [tributeForm, setTributeForm] = useState({ title: "", story: "" });
+  const [editingTributeId, setEditingTributeId] = useState<string | null>(null);
+  const [tributeValidation, setTributeValidation] = useState<string | null>(null);
   const activeMember = members.find((member) => member.id === (selectedMemberId ?? members[0]?.id));
   const { data: tributes = [], error: tributesError } = useTributes(activeMember?.id);
+  const editingTribute = tributes.find((tribute) => tribute.id === editingTributeId);
   const createTribute = useCreateTribute(activeMember?.id ?? "");
+  const updateTribute = useUpdateTribute(activeMember?.id ?? "", editingTributeId ?? "");
 
   async function submitTribute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!activeMember || !tributeForm.title.trim() || !tributeForm.story.trim()) {
+    const payload = tributePayload(tributeForm);
+    if (!activeMember || !payload) {
+      setTributeValidation("Tribute title and story are required.");
       return;
     }
-    await createTribute.mutateAsync({
-      title: tributeForm.title.trim(),
-      story: tributeForm.story.trim()
-    });
+    setTributeValidation(null);
+    if (editingTributeId) {
+      await updateTribute.mutateAsync(payload);
+      setEditingTributeId(null);
+    } else {
+      await createTribute.mutateAsync(payload);
+    }
+    setTributeForm({ title: "", story: "" });
+  }
+
+  function startEditTribute(tribute: Tribute) {
+    setEditingTributeId(tribute.id);
+    setTributeValidation(null);
+    setTributeForm({ title: tribute.title, story: tribute.story });
+  }
+
+  function cancelEditTribute() {
+    setEditingTributeId(null);
+    setTributeValidation(null);
     setTributeForm({ title: "", story: "" });
   }
 
@@ -71,14 +94,24 @@ export function MemorialView() {
               <CardContent>
                 <form className="grid gap-3" onSubmit={submitTribute}>
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-xl font-black text-ink">Add tribute</h3>
-                    <Badge tone="sage">{activeMember.fullName}</Badge>
+                    <div>
+                      <h3 className="text-xl font-black text-ink">{editingTribute ? "Edit tribute" : "Add tribute"}</h3>
+                      {editingTribute ? <FormHint>Editing {editingTribute.title}</FormHint> : null}
+                    </div>
+                    {editingTribute ? (
+                      <Button type="button" variant="ghost" size="icon" aria-label="Cancel tribute edit" onClick={cancelEditTribute}>
+                        <X className="h-5 w-5" />
+                      </Button>
+                    ) : (
+                      <Badge tone="sage">{activeMember.fullName}</Badge>
+                    )}
                   </div>
                   <Input value={tributeForm.title} onChange={(event) => setTributeForm((form) => ({ ...form, title: event.target.value }))} placeholder="Tribute title" required />
                   <Textarea value={tributeForm.story} onChange={(event) => setTributeForm((form) => ({ ...form, story: event.target.value }))} placeholder="Story" required />
-                  {createTribute.error ? <p className="font-bold text-[#C15A4A]">{createTribute.error.message}</p> : null}
-                  <Button type="submit" disabled={createTribute.isPending}>
-                    <Plus className="h-5 w-5" /> {createTribute.isPending ? "Saving..." : "Save tribute"}
+                  <FormError message={tributeValidation ?? createTribute.error?.message ?? updateTribute.error?.message} />
+                  <Button type="submit" disabled={createTribute.isPending || updateTribute.isPending}>
+                    {editingTribute ? <Pencil className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                    {createTribute.isPending || updateTribute.isPending ? "Saving..." : editingTribute ? "Save tribute" : "Save tribute"}
                   </Button>
                 </form>
               </CardContent>
@@ -88,7 +121,12 @@ export function MemorialView() {
           {tributes.map((tribute) => (
             <Card key={tribute.id}>
               <CardContent>
-                <Heart className="h-6 w-6 text-wood" />
+                <div className="flex items-start justify-between gap-3">
+                  <Heart className="h-6 w-6 text-wood" />
+                  <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${tribute.title}`} onClick={() => startEditTribute(tribute)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
                 <h3 className="mt-3 text-2xl font-black text-ink">{tribute.title}</h3>
                 <p className="mt-2 whitespace-pre-wrap text-base font-semibold leading-8 text-muted">{tribute.story}</p>
               </CardContent>
@@ -101,4 +139,14 @@ export function MemorialView() {
       </section>
     </div>
   );
+}
+
+function tributePayload(form: { title: string; story: string }) {
+  if (!form.title.trim() || !form.story.trim()) {
+    return null;
+  }
+  return {
+    title: form.title.trim(),
+    story: form.story.trim()
+  };
 }

@@ -1,41 +1,84 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ImagePlus, Play, Plus, X } from "lucide-react";
+import { ImagePlus, Pencil, Play, Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { FormError, FormHint } from "@/components/forms/form-status";
 import { Input, Textarea } from "@/components/ui/input";
-import { useAlbumMedia, useAlbums, useAttachAlbumMedia, useCreateAlbum, useUploadMedia } from "@/features/albums/hooks";
+import { useAlbumMedia, useAlbums, useAttachAlbumMedia, useCreateAlbum, useUpdateAlbum, useUploadMedia } from "@/features/albums/hooks";
 import type { Album, AlbumCategory } from "@/features/albums/types";
+
+type UploadState = {
+  fileName: string;
+  previewUrl: string | null;
+  progress: number;
+  status: "uploading" | "attaching" | "complete" | "failed";
+  metadata?: {
+    storagePublicId: string;
+    contentType: string;
+    sizeBytes: number;
+  };
+};
 
 export function AlbumsGallery() {
   const { data: albums = [], isLoading, error } = useAlbums();
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
   const [albumForm, setAlbumForm] = useState({ title: "", description: "", category: "EVERYDAY" as AlbumCategory });
+  const [editingAlbumId, setEditingAlbumId] = useState<string | null>(null);
+  const [albumValidation, setAlbumValidation] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
+  const [uploadState, setUploadState] = useState<UploadState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const { data: media = [] } = useAlbumMedia(selectedAlbum?.id);
   const selectedMedia = selectedMediaIndex !== null ? media[selectedMediaIndex] : null;
 
   const featuredAlbum = useMemo(() => selectedAlbum ?? albums[0], [albums, selectedAlbum]);
+  const editingAlbum = albums.find((album) => album.id === editingAlbumId);
   const createAlbum = useCreateAlbum();
+  const updateAlbum = useUpdateAlbum(editingAlbumId ?? "");
   const uploadMedia = useUploadMedia();
   const attachMedia = useAttachAlbumMedia(featuredAlbum?.id ?? "");
 
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
+  }, []);
+
   async function submitAlbum(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!albumForm.title.trim()) {
+    const payload = albumPayload(albumForm);
+    if (!payload) {
+      setAlbumValidation("Album title is required.");
       return;
     }
-    const created = await createAlbum.mutateAsync({
-      title: albumForm.title.trim(),
-      description: albumForm.description.trim() || null,
-      category: albumForm.category
+    setAlbumValidation(null);
+    const saved = editingAlbumId ? await updateAlbum.mutateAsync(payload) : await createAlbum.mutateAsync(payload);
+    setSelectedAlbum(saved);
+    setEditingAlbumId(null);
+    setAlbumForm({ title: "", description: "", category: "EVERYDAY" });
+  }
+
+  function startEditAlbum(album: Album) {
+    setEditingAlbumId(album.id);
+    setAlbumValidation(null);
+    setAlbumForm({
+      title: album.title,
+      description: album.description ?? "",
+      category: album.category
     });
-    setSelectedAlbum(created);
+  }
+
+  function cancelEditAlbum() {
+    setEditingAlbumId(null);
+    setAlbumValidation(null);
     setAlbumForm({ title: "", description: "", category: "EVERYDAY" });
   }
 
@@ -43,17 +86,44 @@ export function AlbumsGallery() {
     if (!file || !featuredAlbum) {
       return;
     }
-    const uploaded = await uploadMedia.mutateAsync(file);
-    await attachMedia.mutateAsync({
-      url: uploaded.url,
-      storagePublicId: uploaded.storagePublicId,
-      mediaType: uploaded.mediaType,
-      caption: caption.trim() || file.name,
-      capturedAt: new Date().toISOString()
-    });
-    setCaption("");
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+    previewUrlRef.current = previewUrl;
+    setUploadState({ fileName: file.name, previewUrl, progress: 0, status: "uploading" });
+    try {
+      const uploaded = await uploadMedia.mutateAsync({
+        file,
+        onProgress: (progress) => {
+          setUploadState((current) => current ? { ...current, progress, status: "uploading" } : current);
+        }
+      });
+      setUploadState((current) => current ? {
+        ...current,
+        progress: 100,
+        status: "attaching",
+        metadata: {
+          storagePublicId: uploaded.storagePublicId,
+          contentType: uploaded.contentType,
+          sizeBytes: uploaded.sizeBytes
+        }
+      } : current);
+      await attachMedia.mutateAsync({
+        url: uploaded.url,
+        storagePublicId: uploaded.storagePublicId,
+        mediaType: uploaded.mediaType,
+        caption: caption.trim() || file.name,
+        capturedAt: new Date().toISOString()
+      });
+      setUploadState((current) => current ? { ...current, status: "complete" } : current);
+      setCaption("");
+    } catch {
+      setUploadState((current) => current ? { ...current, status: "failed" } : current);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   }
 
@@ -79,8 +149,17 @@ export function AlbumsGallery() {
         <CardContent>
           <form className="grid gap-3" onSubmit={submitAlbum}>
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black text-ink">Create album</h2>
-              <Badge tone="sage">Archive</Badge>
+              <div>
+                <h2 className="text-xl font-black text-ink">{editingAlbum ? "Edit album" : "Create album"}</h2>
+                {editingAlbum ? <FormHint>Editing {editingAlbum.title}</FormHint> : null}
+              </div>
+              {editingAlbum ? (
+                <Button type="button" variant="ghost" size="icon" aria-label="Cancel album edit" onClick={cancelEditAlbum}>
+                  <X className="h-5 w-5" />
+                </Button>
+              ) : (
+                <Badge tone="sage">Archive</Badge>
+              )}
             </div>
             <div className="grid gap-3 md:grid-cols-[1fr_13rem]">
               <Input value={albumForm.title} onChange={(event) => setAlbumForm((form) => ({ ...form, title: event.target.value }))} placeholder="Album title" required />
@@ -89,9 +168,10 @@ export function AlbumsGallery() {
               </select>
             </div>
             <Textarea value={albumForm.description} onChange={(event) => setAlbumForm((form) => ({ ...form, description: event.target.value }))} placeholder="Description" />
-            {createAlbum.error ? <p className="font-bold text-[#C15A4A]">{createAlbum.error.message}</p> : null}
-            <Button type="submit" disabled={createAlbum.isPending}>
-              <Plus className="h-5 w-5" /> {createAlbum.isPending ? "Creating..." : "Create album"}
+            <FormError message={albumValidation ?? createAlbum.error?.message ?? updateAlbum.error?.message} />
+            <Button type="submit" disabled={createAlbum.isPending || updateAlbum.isPending}>
+              {editingAlbum ? <Pencil className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              {updateAlbum.isPending ? "Saving..." : createAlbum.isPending ? "Creating..." : editingAlbum ? "Save album" : "Create album"}
             </Button>
           </form>
         </CardContent>
@@ -107,6 +187,34 @@ export function AlbumsGallery() {
             <Button variant="secondary" disabled={uploadMedia.isPending || attachMedia.isPending} onClick={() => fileInputRef.current?.click()}>
               <ImagePlus className="h-5 w-5" /> Choose file
             </Button>
+            {uploadState ? (
+              <div className="grid gap-3 rounded-lg border border-border-warm bg-white p-3 md:col-span-2 md:grid-cols-[8rem_minmax(0,1fr)]">
+                <div className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-surface-soft">
+                  {uploadState.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={uploadState.previewUrl} alt={uploadState.fileName} className="h-full w-full object-cover" />
+                  ) : (
+                    <Play className="h-8 w-8 text-wood" />
+                  )}
+                </div>
+                <div className="grid content-center gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-black text-ink">{uploadState.fileName}</p>
+                    <Badge tone={uploadState.status === "failed" ? "yellow" : "sage"}>
+                      {uploadState.status === "attaching" ? "Attaching" : uploadState.status === "complete" ? "Attached" : uploadState.status === "failed" ? "Failed" : "Uploading"}
+                    </Badge>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-surface-soft">
+                    <div className="h-full rounded-full bg-wood transition-all" style={{ width: `${uploadState.progress}%` }} />
+                  </div>
+                  <p className="text-sm font-bold text-muted">
+                    {uploadState.metadata
+                      ? `${uploadState.metadata.contentType} · ${formatBytes(uploadState.metadata.sizeBytes)}`
+                      : `${uploadState.progress}% uploaded`}
+                  </p>
+                </div>
+              </div>
+            ) : null}
             {uploadMedia.error || attachMedia.error ? <p className="font-bold text-[#C15A4A] md:col-span-2">{uploadMedia.error?.message ?? attachMedia.error?.message}</p> : null}
           </CardContent>
         </Card>
@@ -118,22 +226,30 @@ export function AlbumsGallery() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {albums.map((album) => (
-          <button
+          <div
             key={album.id}
             className="text-left"
-            onClick={() => setSelectedAlbum(album)}
           >
             <Card className="h-full overflow-hidden transition hover:-translate-y-1">
-              <div className="grid aspect-[4/3] place-items-center bg-[linear-gradient(135deg,#F7EEDC,#FFFFFF)]">
+              <button className="grid aspect-[4/3] w-full place-items-center bg-[linear-gradient(135deg,#F7EEDC,#FFFFFF)]" onClick={() => setSelectedAlbum(album)}>
                 <Play className="h-12 w-12 text-wood" />
-              </div>
+              </button>
               <CardContent>
-                <Badge tone="sage">{album.category}</Badge>
-                <h3 className="mt-3 text-2xl font-black text-ink">{album.title}</h3>
-                <p className="mt-2 line-clamp-2 font-semibold leading-7 text-muted">{album.description ?? "Family photos and memories."}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <Badge tone="sage">{album.category}</Badge>
+                    <h3 className="mt-3 text-2xl font-black text-ink">{album.title}</h3>
+                  </div>
+                  <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${album.title}`} onClick={() => startEditAlbum(album)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+                <button className="mt-2 line-clamp-2 text-left font-semibold leading-7 text-muted" onClick={() => setSelectedAlbum(album)}>
+                  {album.description ?? "Family photos and memories."}
+                </button>
               </CardContent>
             </Card>
-          </button>
+          </div>
         ))}
       </div>
 
@@ -185,4 +301,25 @@ export function AlbumsGallery() {
       </AnimatePresence>
     </div>
   );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function albumPayload(form: { title: string; description: string; category: AlbumCategory }) {
+  if (!form.title.trim()) {
+    return null;
+  }
+  return {
+    title: form.title.trim(),
+    description: form.description.trim() || null,
+    category: form.category
+  };
 }

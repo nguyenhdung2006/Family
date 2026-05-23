@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,6 +36,14 @@ public class ChatController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<MessageDTO.RoomResponse> createRoom(@Valid @RequestBody MessageDTO.RoomRequest request) {
         return ApiResponse.created(chatService.createRoom(request));
+    }
+
+    @PutMapping("/rooms/{roomId}")
+    public ApiResponse<MessageDTO.RoomResponse> updateRoom(
+        @PathVariable UUID roomId,
+        @Valid @RequestBody MessageDTO.RoomRequest request
+    ) {
+        return ApiResponse.ok(chatService.updateRoom(roomId, request));
     }
 
     @GetMapping("/rooms/{roomId}")

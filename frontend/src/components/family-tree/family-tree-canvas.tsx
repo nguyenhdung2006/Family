@@ -3,44 +3,73 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Background, Controls, MiniMap, ReactFlow, useEdgesState, useNodesState } from "@xyflow/react";
-import { Link2, Plus, Search } from "lucide-react";
+import { Link2, Pencil, Plus, Search, X } from "lucide-react";
 import { FamilyNode } from "@/components/family-tree/family-node";
 import { MemberDrawer } from "@/components/family-tree/member-drawer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useCreateFamilyMember, useCreateFamilyRelationship, useFamilyMembers } from "@/features/family/hooks";
+import { FormError, FormHint } from "@/components/forms/form-status";
+import { useCreateFamilyMember, useCreateFamilyRelationship, useFamilyMembers, useUpdateFamilyMember, useUpdateFamilyRelationship } from "@/features/family/hooks";
 import { buildFamilyGraph } from "@/features/family/graph";
 import { listRelationships } from "@/features/family/api";
-import type { FamilyBranch, FamilyRelationship, RelationshipType } from "@/features/family/types";
+import type { FamilyBranch, FamilyMember, FamilyRelationship, RelationshipType } from "@/features/family/types";
 import { queryKeys } from "@/lib/api/queryKeys";
 import { useTreeStore } from "@/stores/tree-store";
 
 const nodeTypes = { familyMember: FamilyNode };
 
+type MemberFormState = {
+  fullName: string;
+  birthDate: string;
+  deathDate: string;
+  roleInFamily: string;
+  branch: FamilyBranch;
+  generationLevel: string;
+  avatarUrl: string;
+  biography: string;
+};
+
+type RelationshipFormState = {
+  sourceMemberId: string;
+  targetMemberId: string;
+  type: RelationshipType;
+  notes: string;
+};
+
+const emptyMemberForm: MemberFormState = {
+  fullName: "",
+  birthDate: "",
+  deathDate: "",
+  roleInFamily: "",
+  branch: "PATERNAL",
+  generationLevel: "0",
+  avatarUrl: "",
+  biography: ""
+};
+
+const emptyRelationshipForm: RelationshipFormState = {
+  sourceMemberId: "",
+  targetMemberId: "",
+  type: "PARENT_CHILD",
+  notes: ""
+};
+
 export function FamilyTreeCanvas() {
   const [search, setSearch] = useState("");
-  const [memberForm, setMemberForm] = useState({
-    fullName: "",
-    birthDate: "",
-    deathDate: "",
-    roleInFamily: "",
-    branch: "PATERNAL" as FamilyBranch,
-    generationLevel: "0",
-    avatarUrl: "",
-    biography: ""
-  });
-  const [relationshipForm, setRelationshipForm] = useState({
-    sourceMemberId: "",
-    targetMemberId: "",
-    type: "PARENT_CHILD" as RelationshipType,
-    notes: ""
-  });
+  const [memberForm, setMemberForm] = useState<MemberFormState>(emptyMemberForm);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [memberValidation, setMemberValidation] = useState<string | null>(null);
+  const [relationshipForm, setRelationshipForm] = useState<RelationshipFormState>(emptyRelationshipForm);
+  const [editingRelationshipId, setEditingRelationshipId] = useState<string | null>(null);
+  const [relationshipValidation, setRelationshipValidation] = useState<string | null>(null);
   const { selectedMemberId, setSelectedMemberId } = useTreeStore();
   const { data: members = [], isLoading, error } = useFamilyMembers({ page: 0, size: 250 });
   const createMember = useCreateFamilyMember();
   const createRelationship = useCreateFamilyRelationship();
+  const updateMember = useUpdateFamilyMember(editingMemberId ?? "");
+  const updateRelationship = useUpdateFamilyRelationship(editingRelationshipId ?? "");
 
   const relationshipQueries = useQueries({
     queries: members.map((member) => ({
@@ -76,46 +105,79 @@ export function FamilyTreeCanvas() {
   }, [graph.edges, graph.nodes, setEdges, setNodes]);
 
   const selectedMember = members.find((member) => member.id === selectedMemberId);
+  const editingMember = members.find((member) => member.id === editingMemberId);
+  const editingRelationship = relationships.find((relationship) => relationship.id === editingRelationshipId);
 
   async function submitMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!memberForm.fullName.trim()) {
+    const payload = memberPayload(memberForm);
+    if (!payload) {
+      setMemberValidation("Full name is required and generation must be zero or greater.");
       return;
     }
-    await createMember.mutateAsync({
-      fullName: memberForm.fullName.trim(),
-      birthDate: memberForm.birthDate || null,
-      deathDate: memberForm.deathDate || null,
-      roleInFamily: memberForm.roleInFamily.trim() || null,
-      branch: memberForm.branch,
-      avatarUrl: memberForm.avatarUrl.trim() || null,
-      biography: memberForm.biography.trim() || null,
-      generationLevel: Number(memberForm.generationLevel || 0)
-    });
-    setMemberForm({
-      fullName: "",
-      birthDate: "",
-      deathDate: "",
-      roleInFamily: "",
-      branch: "PATERNAL",
-      generationLevel: "0",
-      avatarUrl: "",
-      biography: ""
-    });
+    setMemberValidation(null);
+    if (editingMemberId) {
+      await updateMember.mutateAsync(payload);
+      setEditingMemberId(null);
+    } else {
+      await createMember.mutateAsync(payload);
+    }
+    setMemberForm(emptyMemberForm);
   }
 
   async function submitRelationship(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!relationshipForm.sourceMemberId || !relationshipForm.targetMemberId || relationshipForm.sourceMemberId === relationshipForm.targetMemberId) {
+    const payload = relationshipPayload(relationshipForm);
+    if (!payload) {
+      setRelationshipValidation("Choose two different members before saving.");
       return;
     }
-    await createRelationship.mutateAsync({
-      sourceMemberId: relationshipForm.sourceMemberId,
-      targetMemberId: relationshipForm.targetMemberId,
-      type: relationshipForm.type,
-      notes: relationshipForm.notes.trim() || null
+    setRelationshipValidation(null);
+    if (editingRelationshipId) {
+      await updateRelationship.mutateAsync(payload);
+      setEditingRelationshipId(null);
+    } else {
+      await createRelationship.mutateAsync(payload);
+    }
+    setRelationshipForm(emptyRelationshipForm);
+  }
+
+  function startEditMember(member: FamilyMember) {
+    setEditingMemberId(member.id);
+    setMemberValidation(null);
+    setMemberForm({
+      fullName: member.fullName,
+      birthDate: member.birthDate ?? "",
+      deathDate: member.deathDate ?? "",
+      roleInFamily: member.roleInFamily ?? "",
+      branch: member.branch,
+      generationLevel: String(member.generationLevel),
+      avatarUrl: member.avatarUrl ?? "",
+      biography: member.biography ?? ""
     });
-    setRelationshipForm((current) => ({ ...current, notes: "" }));
+  }
+
+  function cancelEditMember() {
+    setEditingMemberId(null);
+    setMemberValidation(null);
+    setMemberForm(emptyMemberForm);
+  }
+
+  function startEditRelationship(relationship: FamilyRelationship) {
+    setEditingRelationshipId(relationship.id);
+    setRelationshipValidation(null);
+    setRelationshipForm({
+      sourceMemberId: relationship.sourceMemberId,
+      targetMemberId: relationship.targetMemberId,
+      type: relationship.type,
+      notes: relationship.notes ?? ""
+    });
+  }
+
+  function cancelEditRelationship() {
+    setEditingRelationshipId(null);
+    setRelationshipValidation(null);
+    setRelationshipForm(emptyRelationshipForm);
   }
 
   if (isLoading) {
@@ -129,8 +191,17 @@ export function FamilyTreeCanvas() {
           <CardContent>
             <form className="grid gap-3" onSubmit={submitMember}>
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-xl font-black text-ink">Add family member</h2>
-                <Badge tone="sage">Profile</Badge>
+                <div>
+                  <h2 className="text-xl font-black text-ink">{editingMember ? "Edit family member" : "Add family member"}</h2>
+                  {editingMember ? <FormHint>Editing {editingMember.fullName}</FormHint> : null}
+                </div>
+                {editingMember ? (
+                  <Button type="button" variant="ghost" size="icon" aria-label="Cancel member edit" onClick={cancelEditMember}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                ) : (
+                  <Badge tone="sage">Profile</Badge>
+                )}
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <Input value={memberForm.fullName} onChange={(event) => setMemberForm((form) => ({ ...form, fullName: event.target.value }))} placeholder="Full name" required />
@@ -145,9 +216,10 @@ export function FamilyTreeCanvas() {
               </div>
               <Input value={memberForm.avatarUrl} onChange={(event) => setMemberForm((form) => ({ ...form, avatarUrl: event.target.value }))} placeholder="Avatar URL" />
               <Textarea value={memberForm.biography} onChange={(event) => setMemberForm((form) => ({ ...form, biography: event.target.value }))} placeholder="Biography" />
-              {createMember.error ? <p className="font-bold text-[#C15A4A]">{createMember.error.message}</p> : null}
-              <Button type="submit" disabled={createMember.isPending}>
-                <Plus className="h-5 w-5" /> {createMember.isPending ? "Adding..." : "Add member"}
+              <FormError message={memberValidation ?? createMember.error?.message ?? updateMember.error?.message} />
+              <Button type="submit" disabled={createMember.isPending || updateMember.isPending}>
+                {editingMember ? <Pencil className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                {updateMember.isPending ? "Saving..." : createMember.isPending ? "Adding..." : editingMember ? "Save member" : "Add member"}
               </Button>
             </form>
           </CardContent>
@@ -157,8 +229,17 @@ export function FamilyTreeCanvas() {
           <CardContent>
             <form className="grid gap-3" onSubmit={submitRelationship}>
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-xl font-black text-ink">Link relationship</h2>
-                <Badge tone="blue">{members.length} members</Badge>
+                <div>
+                  <h2 className="text-xl font-black text-ink">{editingRelationship ? "Edit relationship" : "Link relationship"}</h2>
+                  {editingRelationship ? <FormHint>Editing relationship notes and members</FormHint> : null}
+                </div>
+                {editingRelationship ? (
+                  <Button type="button" variant="ghost" size="icon" aria-label="Cancel relationship edit" onClick={cancelEditRelationship}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                ) : (
+                  <Badge tone="blue">{members.length} members</Badge>
+                )}
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <select className="min-h-12 rounded-lg border border-border-warm bg-white px-3 text-base font-bold text-ink" value={relationshipForm.sourceMemberId} onChange={(event) => setRelationshipForm((form) => ({ ...form, sourceMemberId: event.target.value }))} required>
@@ -176,15 +257,53 @@ export function FamilyTreeCanvas() {
                 </select>
                 <Input value={relationshipForm.notes} onChange={(event) => setRelationshipForm((form) => ({ ...form, notes: event.target.value }))} placeholder="Notes" />
               </div>
-              {relationshipForm.sourceMemberId && relationshipForm.sourceMemberId === relationshipForm.targetMemberId ? <p className="font-bold text-[#C15A4A]">Choose two different members.</p> : null}
-              {createRelationship.error ? <p className="font-bold text-[#C15A4A]">{createRelationship.error.message}</p> : null}
-              <Button type="submit" disabled={createRelationship.isPending || members.length < 2}>
-                <Link2 className="h-5 w-5" /> {createRelationship.isPending ? "Linking..." : "Link members"}
+              <FormError message={relationshipValidation ?? createRelationship.error?.message ?? updateRelationship.error?.message} />
+              <Button type="submit" disabled={createRelationship.isPending || updateRelationship.isPending || members.length < 2}>
+                {editingRelationship ? <Pencil className="h-5 w-5" /> : <Link2 className="h-5 w-5" />}
+                {updateRelationship.isPending ? "Saving..." : createRelationship.isPending ? "Linking..." : editingRelationship ? "Save relationship" : "Link members"}
               </Button>
             </form>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardContent>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-black text-ink">Editable records</h2>
+            <Badge tone="sage">{relationships.length} links</Badge>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-2">
+              {members.slice(0, 8).map((member) => (
+                <button key={member.id} className="flex items-center justify-between gap-3 rounded-lg border border-border-warm bg-white p-3 text-left transition hover:bg-surface-soft" onClick={() => startEditMember(member)}>
+                  <span>
+                    <span className="block font-black text-ink">{member.fullName}</span>
+                    <span className="block text-sm font-bold text-muted">{member.roleInFamily ?? member.branch.toLowerCase()}</span>
+                  </span>
+                  <Pencil className="h-4 w-4 text-wood" />
+                </button>
+              ))}
+            </div>
+            <div className="grid gap-2">
+              {relationships.slice(0, 8).map((relationship) => {
+                const source = members.find((member) => member.id === relationship.sourceMemberId)?.fullName ?? "Source";
+                const target = members.find((member) => member.id === relationship.targetMemberId)?.fullName ?? "Target";
+                return (
+                  <button key={relationship.id} className="flex items-center justify-between gap-3 rounded-lg border border-border-warm bg-white p-3 text-left transition hover:bg-surface-soft" onClick={() => startEditRelationship(relationship)}>
+                    <span>
+                      <span className="block font-black text-ink">{source} to {target}</span>
+                      <span className="block text-sm font-bold text-muted">{relationship.type.replace("_", " ").toLowerCase()}</span>
+                    </span>
+                    <Pencil className="h-4 w-4 text-wood" />
+                  </button>
+                );
+              })}
+              {!relationships.length ? <p className="font-semibold text-muted">No relationships yet.</p> : null}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
 
@@ -235,4 +354,33 @@ export function FamilyTreeCanvas() {
       </div>
     </div>
   );
+}
+
+function memberPayload(form: MemberFormState) {
+  const generationLevel = Number(form.generationLevel || 0);
+  if (!form.fullName.trim() || Number.isNaN(generationLevel) || generationLevel < 0) {
+    return null;
+  }
+  return {
+    fullName: form.fullName.trim(),
+    birthDate: form.birthDate || null,
+    deathDate: form.deathDate || null,
+    roleInFamily: form.roleInFamily.trim() || null,
+    branch: form.branch,
+    avatarUrl: form.avatarUrl.trim() || null,
+    biography: form.biography.trim() || null,
+    generationLevel
+  };
+}
+
+function relationshipPayload(form: RelationshipFormState) {
+  if (!form.sourceMemberId || !form.targetMemberId || form.sourceMemberId === form.targetMemberId) {
+    return null;
+  }
+  return {
+    sourceMemberId: form.sourceMemberId,
+    targetMemberId: form.targetMemberId,
+    type: form.type,
+    notes: form.notes.trim() || null
+  };
 }

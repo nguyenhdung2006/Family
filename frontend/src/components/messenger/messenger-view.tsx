@@ -1,13 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect } from "react";
-import { CheckCheck, Plus, Send, Smile } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { CheckCheck, Pencil, Plus, Send, Smile, X } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useChatMessages, useChatRooms, useCreateChatRoom, useMarkMessageSeen, useSendMessage } from "@/features/chat/hooks";
+import { FormError, FormHint } from "@/components/forms/form-status";
+import { useChatMessages, useChatRooms, useCreateChatRoom, useMarkMessageSeen, useSendMessage, useUpdateChatRoom } from "@/features/chat/hooks";
 import { useCurrentUser } from "@/features/auth/hooks";
 import type { ChatRoomType } from "@/features/chat/types";
 import type { FamilyBranch } from "@/features/family/types";
@@ -20,12 +21,16 @@ export function MessengerView() {
   const { data: user } = useCurrentUser();
   const { data: rooms = [], isLoading: roomsLoading, error: roomsError } = useChatRooms();
   const { activeRoomId, setActiveRoomId, drafts, setDraft, newRoomDraft, setNewRoomDraft } = useChatStore();
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [roomValidation, setRoomValidation] = useState<string | null>(null);
   const roomId = activeRoomId ?? rooms[0]?.id ?? null;
   const activeRoom = rooms.find((room) => room.id === roomId);
+  const editingRoom = rooms.find((room) => room.id === editingRoomId);
   const { data: messages = [], isLoading: messagesLoading, error: messagesError } = useChatMessages(roomId);
   const sendMessage = useSendMessage(roomId ?? "");
   const markSeen = useMarkMessageSeen();
   const createRoom = useCreateChatRoom();
+  const updateRoom = useUpdateChatRoom(editingRoomId ?? "");
 
   useRoomSocket(roomId);
 
@@ -46,15 +51,39 @@ export function MessengerView() {
     event.preventDefault();
     const name = newRoomDraft.name.trim();
     if (!name) {
+      setRoomValidation("Room name is required.");
       return;
     }
-    const room = await createRoom.mutateAsync({
+    setRoomValidation(null);
+    const payload = {
       name,
       type: newRoomDraft.type,
       branch: newRoomDraft.branch || null
-    });
+    };
+    const room = editingRoomId ? await updateRoom.mutateAsync(payload) : await createRoom.mutateAsync(payload);
     setNewRoomDraft({ name: "", type: "GROUP", branch: "" });
+    setEditingRoomId(null);
     setActiveRoomId(room.id);
+  }
+
+  function startEditRoom(roomId: string) {
+    const room = rooms.find((candidate) => candidate.id === roomId);
+    if (!room) {
+      return;
+    }
+    setEditingRoomId(room.id);
+    setRoomValidation(null);
+    setNewRoomDraft({
+      name: room.name,
+      type: room.type,
+      branch: room.branch ?? ""
+    });
+  }
+
+  function cancelEditRoom() {
+    setEditingRoomId(null);
+    setRoomValidation(null);
+    setNewRoomDraft({ name: "", type: "GROUP", branch: "" });
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -79,10 +108,21 @@ export function MessengerView() {
         </div>
         <form className="grid gap-2 border-b border-border-warm p-3" onSubmit={submitRoom}>
           <div className="flex items-center justify-between gap-2">
-            <Badge tone="sage">New room</Badge>
-            <Button type="submit" size="sm" disabled={createRoom.isPending}>
-              <Plus className="h-4 w-4" /> {createRoom.isPending ? "Creating" : "Create"}
-            </Button>
+            <div>
+              <Badge tone="sage">{editingRoom ? "Edit room" : "New room"}</Badge>
+              {editingRoom ? <FormHint className="mt-1">Editing {editingRoom.name}</FormHint> : null}
+            </div>
+            <div className="flex gap-2">
+              {editingRoom ? (
+                <Button type="button" variant="ghost" size="icon" aria-label="Cancel room edit" onClick={cancelEditRoom}>
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : null}
+              <Button type="submit" size="sm" disabled={createRoom.isPending || updateRoom.isPending}>
+                {editingRoom ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {updateRoom.isPending ? "Saving" : createRoom.isPending ? "Creating" : editingRoom ? "Save" : "Create"}
+              </Button>
+            </div>
           </div>
           <Input value={newRoomDraft.name} onChange={(event) => setNewRoomDraft({ ...newRoomDraft, name: event.target.value })} placeholder="Room name" required />
           <div className="grid grid-cols-2 gap-2">
@@ -96,26 +136,30 @@ export function MessengerView() {
               <option value="MATERNAL">Maternal</option>
             </select>
           </div>
-          {createRoom.error ? <p className="font-bold text-[#C15A4A]">{createRoom.error.message}</p> : null}
+          <FormError message={roomValidation ?? createRoom.error?.message ?? updateRoom.error?.message} />
         </form>
         <div className="h-[calc(100%-17rem)] overflow-y-auto p-2 hometree-scrollbar">
           {roomsLoading ? <p className="p-4 font-semibold text-muted">Loading rooms...</p> : null}
           {roomsError ? <p className="p-4 font-bold text-[#C15A4A]">{roomsError.message}</p> : null}
           {rooms.map((room) => (
-            <button
+            <div
               key={room.id}
               className={cn(
                 "flex min-h-16 w-full items-center gap-3 rounded-lg p-3 text-left transition",
                 room.id === roomId ? "bg-warm-yellow/25" : "hover:bg-surface-soft"
               )}
-              onClick={() => setActiveRoomId(room.id)}
             >
-              <Avatar name={room.name} className="h-11 w-11" />
-              <div>
-                <p className="font-black text-ink">{room.name}</p>
-                <p className="text-sm font-bold text-muted">{room.type.toLowerCase()} room</p>
-              </div>
-            </button>
+              <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setActiveRoomId(room.id)}>
+                <Avatar name={room.name} className="h-11 w-11" />
+                <div className="min-w-0">
+                  <p className="truncate font-black text-ink">{room.name}</p>
+                  <p className="text-sm font-bold text-muted">{room.type.toLowerCase()} room</p>
+                </div>
+              </button>
+              <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${room.name}`} onClick={() => startEditRoom(room.id)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
           ))}
           {!rooms.length ? <p className="p-4 font-semibold text-muted">No chat rooms yet.</p> : null}
         </div>

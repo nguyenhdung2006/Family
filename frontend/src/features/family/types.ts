@@ -33,9 +33,13 @@ export type CreateFamilyMemberInput = {
   generationLevel: number;
 };
 
+export type UpdateFamilyMemberInput = CreateFamilyMemberInput;
+
 export type CreateFamilyRelationshipInput = {
   sourceMemberId: string;
   targetMemberId: string;
   type: RelationshipType;
   notes?: string | null;
 };
+
+export type UpdateFamilyRelationshipInput = CreateFamilyRelationshipInput;

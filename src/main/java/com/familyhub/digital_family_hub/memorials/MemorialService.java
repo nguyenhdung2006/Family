@@ -43,8 +43,27 @@ public class MemorialService {
         }
         MemorialTribute tribute = new MemorialTribute();
         tribute.setMember(member);
+        applyTributeRequest(tribute, request);
+        return MemorialDTO.TributeResponse.from(tributes.save(tribute));
+    }
+
+    @Transactional
+    public MemorialDTO.TributeResponse updateTribute(
+        UUID memberId,
+        UUID tributeId,
+        MemorialDTO.TributeRequest request
+    ) {
+        MemorialTribute tribute = tributes.findById(tributeId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tribute not found"));
+        if (!tribute.getMember().getId().equals(memberId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tribute not found for member");
+        }
+        applyTributeRequest(tribute, request);
+        return MemorialDTO.TributeResponse.from(tributes.save(tribute));
+    }
+
+    private void applyTributeRequest(MemorialTribute tribute, MemorialDTO.TributeRequest request) {
         tribute.setTitle(request.title());
         tribute.setStory(request.story());
-        return MemorialDTO.TributeResponse.from(tributes.save(tribute));
     }
 }

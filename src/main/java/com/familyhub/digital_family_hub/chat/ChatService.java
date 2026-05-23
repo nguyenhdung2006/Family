@@ -45,9 +45,15 @@ public class ChatService {
     @Transactional
     public MessageDTO.RoomResponse createRoom(MessageDTO.RoomRequest request) {
         ChatRoom room = new ChatRoom();
-        room.setName(request.name());
-        room.setType(request.type());
-        room.setBranch(request.branch());
+        applyRoomRequest(room, request);
+        return MessageDTO.RoomResponse.from(rooms.save(room));
+    }
+
+    @Transactional
+    public MessageDTO.RoomResponse updateRoom(UUID roomId, MessageDTO.RoomRequest request) {
+        ChatRoom room = rooms.findById(roomId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat room not found"));
+        applyRoomRequest(room, request);
         return MessageDTO.RoomResponse.from(rooms.save(room));
     }
 
@@ -95,5 +101,11 @@ public class ChatService {
         }
         return users.findByEmailIgnoreCase(principal.getName())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user was not found"));
+    }
+
+    private void applyRoomRequest(ChatRoom room, MessageDTO.RoomRequest request) {
+        room.setName(request.name());
+        room.setType(request.type());
+        room.setBranch(request.branch());
     }
 }
