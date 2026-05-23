@@ -2,6 +2,7 @@ package com.familyhub.digital_family_hub.chat;
 
 import com.familyhub.digital_family_hub.shared.api.ApiResponse;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -49,9 +50,10 @@ public class ChatController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<MessageDTO.Response> sendMessage(
         @PathVariable UUID roomId,
-        @Valid @RequestBody MessageDTO.SendRequest request
+        @Valid @RequestBody MessageDTO.SendRequest request,
+        Principal principal
     ) {
-        return ApiResponse.created(chatService.sendMessage(roomId, request));
+        return ApiResponse.created(chatService.sendMessage(roomId, request, principal));
     }
 
     @PatchMapping("/{messageId}/seen")

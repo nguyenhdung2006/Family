@@ -1,8 +1,11 @@
 target/
+frontend/
 .git/
 .idea/
 .vscode/
 *.log
+*.exe
+*.tsbuildinfo
 .env
 .env.*
 client_secret_*.json

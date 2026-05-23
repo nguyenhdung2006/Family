@@ -1,6 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 import type { PageParams } from "@/lib/api/types";
-import type { Album, AlbumCategory, AlbumMedia } from "@/features/albums/types";
+import type { Album, AlbumCategory, AlbumMedia, AttachAlbumMediaInput, CreateAlbumInput } from "@/features/albums/types";
 
 export function listAlbums(filters: PageParams & { category?: AlbumCategory } = { page: 0, size: 30 }) {
   return apiFetch<Album[]>("/api/albums", { params: filters });
@@ -8,6 +8,20 @@ export function listAlbums(filters: PageParams & { category?: AlbumCategory } = 
 
 export function listAlbumMedia(albumId: string) {
   return apiFetch<AlbumMedia[]>(`/api/albums/${albumId}/media`);
+}
+
+export function createAlbum(input: CreateAlbumInput) {
+  return apiFetch<Album>("/api/albums", {
+    method: "POST",
+    body: input
+  });
+}
+
+export function attachAlbumMedia(albumId: string, input: AttachAlbumMediaInput) {
+  return apiFetch<AlbumMedia>(`/api/albums/${albumId}/media`, {
+    method: "POST",
+    body: input
+  });
 }
 
 export function uploadMedia(file: File) {

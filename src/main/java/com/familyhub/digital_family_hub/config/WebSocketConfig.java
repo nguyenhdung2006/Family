@@ -1,7 +1,10 @@
 package com.familyhub.digital_family_hub.config;
 
+import com.familyhub.digital_family_hub.auth.JwtAuthenticationFilter;
 import com.familyhub.digital_family_hub.auth.JwtService;
+import jakarta.servlet.http.Cookie;
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +15,11 @@ import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.http.server.ServerHttpRequest;
+import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
+import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
+import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -41,6 +49,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
             .setAllowedOrigins(allowedOrigins.split(","))
+            .setHandshakeHandler(new JwtHandshakeHandler(jwtService))
+            .addInterceptors(new HttpSessionHandshakeInterceptor())
             .withSockJS();
     }
 
@@ -70,6 +80,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         }
 
         private void authenticateConnect(StompHeaderAccessor accessor) {
+            if (accessor.getUser() instanceof StompPrincipal) {
+                return;
+            }
             List<String> authorization = accessor.getNativeHeader("Authorization");
             if (authorization == null || authorization.isEmpty() || !authorization.get(0).startsWith("Bearer ")) {
                 throw new IllegalArgumentException("Missing WebSocket bearer token");
@@ -88,6 +101,37 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     throw new IllegalArgumentException("Not allowed to subscribe to chat rooms");
                 }
             }
+        }
+    }
+
+    private static final class JwtHandshakeHandler extends DefaultHandshakeHandler {
+
+        private final JwtService jwtService;
+
+        private JwtHandshakeHandler(JwtService jwtService) {
+            this.jwtService = jwtService;
+        }
+
+        @Override
+        protected Principal determineUser(
+            ServerHttpRequest request,
+            WebSocketHandler wsHandler,
+            java.util.Map<String, Object> attributes
+        ) {
+            if (request instanceof ServletServerHttpRequest servletRequest) {
+                Cookie[] cookies = servletRequest.getServletRequest().getCookies();
+                if (cookies != null) {
+                    return Arrays.stream(cookies)
+                        .filter(cookie -> JwtAuthenticationFilter.TOKEN_COOKIE.equals(cookie.getName()))
+                        .map(Cookie::getValue)
+                        .map(jwtService::validate)
+                        .flatMap(java.util.Optional::stream)
+                        .findFirst()
+                        .<Principal>map(principal -> new StompPrincipal(principal.email(), principal.role().name()))
+                        .orElseGet(() -> super.determineUser(request, wsHandler, attributes));
+                }
+            }
+            return super.determineUser(request, wsHandler, attributes);
         }
     }
 

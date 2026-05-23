@@ -18,7 +18,7 @@ export default function ProfilePage() {
               <h2 className="text-3xl font-black text-ink">{user?.name ?? "Family Member"}</h2>
               <p className="mt-1 text-lg font-bold text-muted">{user?.email ?? "Signed in family profile"}</p>
               <p className="mt-4 max-w-2xl text-base font-semibold leading-7 text-muted">
-                Profile editing can connect to the user/family-member API when the backend exposes update endpoints.
+                Role: {user?.role ?? "MEMBER"}
               </p>
             </div>
           </div>

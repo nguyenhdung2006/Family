@@ -1,10 +1,10 @@
-import { AlbumsGallery } from "@/components/albums/albums-gallery";
+import { AlbumsPageClient } from "@/components/albums/albums-page-client";
 import { AppShell } from "@/components/layout/app-shell";
 
 export default function AlbumsPage() {
   return (
     <AppShell title="Albums">
-      <AlbumsGallery />
+      <AlbumsPageClient />
     </AppShell>
   );
 }

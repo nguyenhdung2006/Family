@@ -1,22 +1,61 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ImagePlus, Play, X } from "lucide-react";
+import { ImagePlus, Play, Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useAlbumMedia, useAlbums } from "@/features/albums/hooks";
-import type { Album } from "@/features/albums/types";
+import { Input, Textarea } from "@/components/ui/input";
+import { useAlbumMedia, useAlbums, useAttachAlbumMedia, useCreateAlbum, useUploadMedia } from "@/features/albums/hooks";
+import type { Album, AlbumCategory } from "@/features/albums/types";
 
 export function AlbumsGallery() {
-  const { data: albums = [], isLoading } = useAlbums();
+  const { data: albums = [], isLoading, error } = useAlbums();
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
+  const [albumForm, setAlbumForm] = useState({ title: "", description: "", category: "EVERYDAY" as AlbumCategory });
+  const [caption, setCaption] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: media = [] } = useAlbumMedia(selectedAlbum?.id);
   const selectedMedia = selectedMediaIndex !== null ? media[selectedMediaIndex] : null;
 
   const featuredAlbum = useMemo(() => selectedAlbum ?? albums[0], [albums, selectedAlbum]);
+  const createAlbum = useCreateAlbum();
+  const uploadMedia = useUploadMedia();
+  const attachMedia = useAttachAlbumMedia(featuredAlbum?.id ?? "");
+
+  async function submitAlbum(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!albumForm.title.trim()) {
+      return;
+    }
+    const created = await createAlbum.mutateAsync({
+      title: albumForm.title.trim(),
+      description: albumForm.description.trim() || null,
+      category: albumForm.category
+    });
+    setSelectedAlbum(created);
+    setAlbumForm({ title: "", description: "", category: "EVERYDAY" });
+  }
+
+  async function handleFileChange(file?: File) {
+    if (!file || !featuredAlbum) {
+      return;
+    }
+    const uploaded = await uploadMedia.mutateAsync(file);
+    await attachMedia.mutateAsync({
+      url: uploaded.url,
+      storagePublicId: uploaded.storagePublicId,
+      mediaType: uploaded.mediaType,
+      caption: caption.trim() || file.name,
+      capturedAt: new Date().toISOString()
+    });
+    setCaption("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
 
   return (
     <div className="grid gap-5">
@@ -29,11 +68,51 @@ export function AlbumsGallery() {
               Keep holidays, weddings, everyday meals, and tiny ordinary moments in one gentle place.
             </p>
           </div>
-          <Button>
-            <ImagePlus className="h-5 w-5" /> Upload
+          <Button disabled={!featuredAlbum || uploadMedia.isPending || attachMedia.isPending} onClick={() => fileInputRef.current?.click()}>
+            <ImagePlus className="h-5 w-5" /> {uploadMedia.isPending || attachMedia.isPending ? "Uploading..." : "Upload"}
           </Button>
+          <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(event) => void handleFileChange(event.target.files?.[0])} />
         </CardContent>
       </Card>
+
+      <Card>
+        <CardContent>
+          <form className="grid gap-3" onSubmit={submitAlbum}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-black text-ink">Create album</h2>
+              <Badge tone="sage">Archive</Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[1fr_13rem]">
+              <Input value={albumForm.title} onChange={(event) => setAlbumForm((form) => ({ ...form, title: event.target.value }))} placeholder="Album title" required />
+              <select className="min-h-12 rounded-lg border border-border-warm bg-white px-3 text-base font-bold text-ink" value={albumForm.category} onChange={(event) => setAlbumForm((form) => ({ ...form, category: event.target.value as AlbumCategory }))}>
+                {["TET", "WEDDING", "TRAVEL", "BIRTHDAY", "MEMORIAL", "EVERYDAY", "OTHER"].map((category) => <option key={category} value={category}>{category.replace("_", " ")}</option>)}
+              </select>
+            </div>
+            <Textarea value={albumForm.description} onChange={(event) => setAlbumForm((form) => ({ ...form, description: event.target.value }))} placeholder="Description" />
+            {createAlbum.error ? <p className="font-bold text-[#C15A4A]">{createAlbum.error.message}</p> : null}
+            <Button type="submit" disabled={createAlbum.isPending}>
+              <Plus className="h-5 w-5" /> {createAlbum.isPending ? "Creating..." : "Create album"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {featuredAlbum ? (
+        <Card>
+          <CardContent className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <div>
+              <h2 className="text-xl font-black text-ink">Add media to {featuredAlbum.title}</h2>
+              <Input className="mt-3" value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Caption for next upload" />
+            </div>
+            <Button variant="secondary" disabled={uploadMedia.isPending || attachMedia.isPending} onClick={() => fileInputRef.current?.click()}>
+              <ImagePlus className="h-5 w-5" /> Choose file
+            </Button>
+            {uploadMedia.error || attachMedia.error ? <p className="font-bold text-[#C15A4A] md:col-span-2">{uploadMedia.error?.message ?? attachMedia.error?.message}</p> : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
 
       {isLoading ? <Card><CardContent><p className="font-bold text-muted">Loading albums...</p></CardContent></Card> : null}
 

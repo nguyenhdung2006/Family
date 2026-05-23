@@ -13,6 +13,8 @@ export type ChatRoom = {
 export type ChatMessage = {
   id: string;
   roomId: string;
+  senderId: string | null;
+  senderName: string | null;
   type: MessageType;
   body: string;
   mediaUrl: string | null;
@@ -26,4 +28,10 @@ export type SendMessageInput = {
   type: MessageType;
   body: string;
   mediaUrl?: string | null;
+};
+
+export type CreateChatRoomInput = {
+  name: string;
+  type: ChatRoomType;
+  branch?: FamilyBranch | null;
 };

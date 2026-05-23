@@ -4,7 +4,7 @@ import { Client, type IMessage, type StompSubscription } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { getAccessToken } from "@/lib/auth/token";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:8080/ws";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "/ws";
 
 export function createStompClient() {
   const token = getAccessToken();

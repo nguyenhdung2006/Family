@@ -1,7 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { listMemorialMembers, listTributes } from "@/features/memorial/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createTribute, listMemorialMembers, listTributes } from "@/features/memorial/api";
 import { queryKeys } from "@/lib/api/queryKeys";
 
 export function useMemorialMembers() {
@@ -16,5 +16,13 @@ export function useTributes(memberId?: string | null) {
     queryKey: memberId ? queryKeys.memorialTributes(memberId) : ["memorials", "none", "tributes"],
     queryFn: () => listTributes(memberId as string),
     enabled: Boolean(memberId)
+  });
+}
+
+export function useCreateTribute(memberId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof createTribute>[1]) => createTribute(memberId, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.memorialTributes(memberId) })
   });
 }

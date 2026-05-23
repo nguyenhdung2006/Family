@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Background, Controls, MiniMap, ReactFlow, useEdgesState, useNodesState } from "@xyflow/react";
-import { Search } from "lucide-react";
+import { Link2, Plus, Search } from "lucide-react";
 import { FamilyNode } from "@/components/family-tree/family-node";
 import { MemberDrawer } from "@/components/family-tree/member-drawer";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Input, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useFamilyMembers } from "@/features/family/hooks";
+import { useCreateFamilyMember, useCreateFamilyRelationship, useFamilyMembers } from "@/features/family/hooks";
 import { buildFamilyGraph } from "@/features/family/graph";
 import { listRelationships } from "@/features/family/api";
-import type { FamilyRelationship } from "@/features/family/types";
+import type { FamilyBranch, FamilyRelationship, RelationshipType } from "@/features/family/types";
 import { queryKeys } from "@/lib/api/queryKeys";
 import { useTreeStore } from "@/stores/tree-store";
 
@@ -20,8 +21,26 @@ const nodeTypes = { familyMember: FamilyNode };
 
 export function FamilyTreeCanvas() {
   const [search, setSearch] = useState("");
+  const [memberForm, setMemberForm] = useState({
+    fullName: "",
+    birthDate: "",
+    deathDate: "",
+    roleInFamily: "",
+    branch: "PATERNAL" as FamilyBranch,
+    generationLevel: "0",
+    avatarUrl: "",
+    biography: ""
+  });
+  const [relationshipForm, setRelationshipForm] = useState({
+    sourceMemberId: "",
+    targetMemberId: "",
+    type: "PARENT_CHILD" as RelationshipType,
+    notes: ""
+  });
   const { selectedMemberId, setSelectedMemberId } = useTreeStore();
-  const { data: members = [], isLoading } = useFamilyMembers({ page: 0, size: 250 });
+  const { data: members = [], isLoading, error } = useFamilyMembers({ page: 0, size: 250 });
+  const createMember = useCreateFamilyMember();
+  const createRelationship = useCreateFamilyRelationship();
 
   const relationshipQueries = useQueries({
     queries: members.map((member) => ({
@@ -58,12 +77,118 @@ export function FamilyTreeCanvas() {
 
   const selectedMember = members.find((member) => member.id === selectedMemberId);
 
+  async function submitMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!memberForm.fullName.trim()) {
+      return;
+    }
+    await createMember.mutateAsync({
+      fullName: memberForm.fullName.trim(),
+      birthDate: memberForm.birthDate || null,
+      deathDate: memberForm.deathDate || null,
+      roleInFamily: memberForm.roleInFamily.trim() || null,
+      branch: memberForm.branch,
+      avatarUrl: memberForm.avatarUrl.trim() || null,
+      biography: memberForm.biography.trim() || null,
+      generationLevel: Number(memberForm.generationLevel || 0)
+    });
+    setMemberForm({
+      fullName: "",
+      birthDate: "",
+      deathDate: "",
+      roleInFamily: "",
+      branch: "PATERNAL",
+      generationLevel: "0",
+      avatarUrl: "",
+      biography: ""
+    });
+  }
+
+  async function submitRelationship(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!relationshipForm.sourceMemberId || !relationshipForm.targetMemberId || relationshipForm.sourceMemberId === relationshipForm.targetMemberId) {
+      return;
+    }
+    await createRelationship.mutateAsync({
+      sourceMemberId: relationshipForm.sourceMemberId,
+      targetMemberId: relationshipForm.targetMemberId,
+      type: relationshipForm.type,
+      notes: relationshipForm.notes.trim() || null
+    });
+    setRelationshipForm((current) => ({ ...current, notes: "" }));
+  }
+
   if (isLoading) {
     return <Card><CardContent><p className="text-lg font-bold text-muted">Loading the family tree...</p></CardContent></Card>;
   }
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-border-warm bg-[#FFFDF7] shadow-[0_18px_45px_rgba(80,55,33,0.08)]">
+    <div className="grid gap-5">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <Card>
+          <CardContent>
+            <form className="grid gap-3" onSubmit={submitMember}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-xl font-black text-ink">Add family member</h2>
+                <Badge tone="sage">Profile</Badge>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input value={memberForm.fullName} onChange={(event) => setMemberForm((form) => ({ ...form, fullName: event.target.value }))} placeholder="Full name" required />
+                <Input value={memberForm.roleInFamily} onChange={(event) => setMemberForm((form) => ({ ...form, roleInFamily: event.target.value }))} placeholder="Role in family" />
+                <Input type="date" value={memberForm.birthDate} onChange={(event) => setMemberForm((form) => ({ ...form, birthDate: event.target.value }))} aria-label="Birth date" />
+                <Input type="date" value={memberForm.deathDate} onChange={(event) => setMemberForm((form) => ({ ...form, deathDate: event.target.value }))} aria-label="Death date" />
+                <select className="min-h-12 rounded-lg border border-border-warm bg-white px-3 text-base font-bold text-ink" value={memberForm.branch} onChange={(event) => setMemberForm((form) => ({ ...form, branch: event.target.value as FamilyBranch }))}>
+                  <option value="PATERNAL">Paternal</option>
+                  <option value="MATERNAL">Maternal</option>
+                </select>
+                <Input type="number" min={0} value={memberForm.generationLevel} onChange={(event) => setMemberForm((form) => ({ ...form, generationLevel: event.target.value }))} placeholder="Generation" />
+              </div>
+              <Input value={memberForm.avatarUrl} onChange={(event) => setMemberForm((form) => ({ ...form, avatarUrl: event.target.value }))} placeholder="Avatar URL" />
+              <Textarea value={memberForm.biography} onChange={(event) => setMemberForm((form) => ({ ...form, biography: event.target.value }))} placeholder="Biography" />
+              {createMember.error ? <p className="font-bold text-[#C15A4A]">{createMember.error.message}</p> : null}
+              <Button type="submit" disabled={createMember.isPending}>
+                <Plus className="h-5 w-5" /> {createMember.isPending ? "Adding..." : "Add member"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent>
+            <form className="grid gap-3" onSubmit={submitRelationship}>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-xl font-black text-ink">Link relationship</h2>
+                <Badge tone="blue">{members.length} members</Badge>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <select className="min-h-12 rounded-lg border border-border-warm bg-white px-3 text-base font-bold text-ink" value={relationshipForm.sourceMemberId} onChange={(event) => setRelationshipForm((form) => ({ ...form, sourceMemberId: event.target.value }))} required>
+                  <option value="">Source member</option>
+                  {members.map((member) => <option key={member.id} value={member.id}>{member.fullName}</option>)}
+                </select>
+                <select className="min-h-12 rounded-lg border border-border-warm bg-white px-3 text-base font-bold text-ink" value={relationshipForm.targetMemberId} onChange={(event) => setRelationshipForm((form) => ({ ...form, targetMemberId: event.target.value }))} required>
+                  <option value="">Target member</option>
+                  {members.map((member) => <option key={member.id} value={member.id}>{member.fullName}</option>)}
+                </select>
+                <select className="min-h-12 rounded-lg border border-border-warm bg-white px-3 text-base font-bold text-ink" value={relationshipForm.type} onChange={(event) => setRelationshipForm((form) => ({ ...form, type: event.target.value as RelationshipType }))}>
+                  <option value="PARENT_CHILD">Parent child</option>
+                  <option value="SPOUSE">Spouse</option>
+                  <option value="SIBLING">Sibling</option>
+                </select>
+                <Input value={relationshipForm.notes} onChange={(event) => setRelationshipForm((form) => ({ ...form, notes: event.target.value }))} placeholder="Notes" />
+              </div>
+              {relationshipForm.sourceMemberId && relationshipForm.sourceMemberId === relationshipForm.targetMemberId ? <p className="font-bold text-[#C15A4A]">Choose two different members.</p> : null}
+              {createRelationship.error ? <p className="font-bold text-[#C15A4A]">{createRelationship.error.message}</p> : null}
+              <Button type="submit" disabled={createRelationship.isPending || members.length < 2}>
+                <Link2 className="h-5 w-5" /> {createRelationship.isPending ? "Linking..." : "Link members"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+
+      {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
+
+      <div className="relative overflow-hidden rounded-lg border border-border-warm bg-[#FFFDF7] shadow-[0_18px_45px_rgba(80,55,33,0.08)]">
       <div className="absolute left-4 top-4 z-10 flex w-[calc(100%-2rem)] flex-col gap-3 sm:w-auto sm:min-w-80">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
@@ -107,6 +232,7 @@ export function FamilyTreeCanvas() {
       ) : null}
 
       <MemberDrawer member={selectedMember} onClose={() => setSelectedMemberId(null)} />
+      </div>
     </div>
   );
 }

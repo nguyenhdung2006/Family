@@ -28,7 +28,7 @@
   --color-ink: var(--text);
   --color-muted: var(--muted);
   --color-border-warm: var(--border);
-  --font-sans: var(--font-nunito);
+  --font-sans: "Nunito Sans", "Inter", "Segoe UI", Arial, sans-serif;
 }
 
 * {
@@ -45,7 +45,7 @@ body {
     radial-gradient(circle at top left, rgba(244, 185, 66, 0.22), transparent 34rem),
     linear-gradient(180deg, #fff8ea 0%, #fffdf7 48%, #f7eedc 100%);
   color: var(--text);
-  font-family: var(--font-nunito), system-ui, sans-serif;
+  font-family: "Nunito Sans", "Inter", "Segoe UI", Arial, sans-serif;
   font-size: 16px;
   text-rendering: optimizeLegibility;
 }

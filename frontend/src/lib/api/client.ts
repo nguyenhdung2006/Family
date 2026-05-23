@@ -19,7 +19,15 @@ type RequestOptions = Omit<RequestInit, "body"> & {
 };
 
 function buildUrl(path: string, params?: RequestOptions["params"]) {
-  const url = new URL(path.startsWith("http") ? path : `${API_BASE_URL}${path}`);
+  const baseUrl = API_BASE_URL.trim();
+  const url = new URL(
+    path.startsWith("http")
+      ? path
+      : baseUrl
+        ? `${baseUrl}${path}`
+        : path,
+    typeof window === "undefined" ? "http://localhost:3000" : window.location.origin
+  );
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       url.searchParams.set(key, String(value));

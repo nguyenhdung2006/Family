@@ -15,3 +15,17 @@ export type AlbumMedia = {
   caption: string | null;
   capturedAt: string | null;
 };
+
+export type CreateAlbumInput = {
+  title: string;
+  description?: string | null;
+  category: AlbumCategory;
+};
+
+export type AttachAlbumMediaInput = {
+  url: string;
+  storagePublicId?: string | null;
+  mediaType: MediaType;
+  caption?: string | null;
+  capturedAt?: string | null;
+};

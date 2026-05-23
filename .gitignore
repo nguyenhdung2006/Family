@@ -45,9 +45,15 @@ client_secret*.json
 *.pem
 *.key
 
+### Local artifacts ###
+*.log
+*.exe
+*.tsbuildinfo
+
 ### Frontend ###
 frontend/node_modules/
 frontend/.next/
 frontend/out/
 frontend/.vercel/
 frontend/next-env.d.ts
+frontend/build-*.log

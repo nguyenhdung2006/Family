@@ -8,3 +8,10 @@ export type InAppNotification = {
   scheduledFor: string | null;
   readAt: string | null;
 };
+
+export type CreateNotificationInput = {
+  type: NotificationType;
+  title: string;
+  body: string;
+  scheduledFor?: string | null;
+};

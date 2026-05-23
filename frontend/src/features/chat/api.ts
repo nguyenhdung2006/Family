@@ -1,8 +1,15 @@
 import { apiFetch } from "@/lib/api/client";
-import type { ChatMessage, ChatRoom, SendMessageInput } from "@/features/chat/types";
+import type { ChatMessage, ChatRoom, CreateChatRoomInput, SendMessageInput } from "@/features/chat/types";
 
 export function listRooms() {
   return apiFetch<ChatRoom[]>("/api/messages/rooms");
+}
+
+export function createRoom(input: CreateChatRoomInput) {
+  return apiFetch<ChatRoom>("/api/messages/rooms", {
+    method: "POST",
+    body: input
+  });
 }
 
 export function listMessages(roomId: string, page = 0, size = 50) {

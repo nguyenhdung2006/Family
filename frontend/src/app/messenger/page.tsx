@@ -1,10 +1,10 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { MessengerView } from "@/components/messenger/messenger-view";
+import { MessengerPageClient } from "@/components/messenger/messenger-page-client";
 
 export default function MessengerPage() {
   return (
     <AppShell title="Messenger">
-      <MessengerView />
+      <MessengerPageClient />
     </AppShell>
   );
 }

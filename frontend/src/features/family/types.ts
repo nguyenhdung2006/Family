@@ -21,3 +21,21 @@ export type FamilyRelationship = {
   type: RelationshipType;
   notes: string | null;
 };
+
+export type CreateFamilyMemberInput = {
+  fullName: string;
+  birthDate?: string | null;
+  deathDate?: string | null;
+  roleInFamily?: string | null;
+  branch: FamilyBranch;
+  avatarUrl?: string | null;
+  biography?: string | null;
+  generationLevel: number;
+};
+
+export type CreateFamilyRelationshipInput = {
+  sourceMemberId: string;
+  targetMemberId: string;
+  type: RelationshipType;
+  notes?: string | null;
+};

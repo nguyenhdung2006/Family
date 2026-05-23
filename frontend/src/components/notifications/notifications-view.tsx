@@ -1,18 +1,68 @@
 "use client";
 
-import { Bell, Check } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { Bell, Check, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useMarkNotificationRead, useNotifications } from "@/features/notifications/hooks";
+import { Input, Textarea } from "@/components/ui/input";
+import { useCreateNotification, useMarkNotificationRead, useNotifications } from "@/features/notifications/hooks";
+import type { NotificationType } from "@/features/notifications/types";
 import { formatFamilyDate } from "@/lib/utils/date";
 
 export function NotificationsView() {
-  const { data: notifications = [] } = useNotifications();
+  const { data: notifications = [], isLoading, error } = useNotifications();
   const markRead = useMarkNotificationRead();
+  const createNotification = useCreateNotification();
+  const [form, setForm] = useState({
+    type: "FAMILY_EVENT" as NotificationType,
+    title: "",
+    body: "",
+    scheduledFor: ""
+  });
+
+  async function submitNotification(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!form.title.trim() || !form.body.trim()) {
+      return;
+    }
+    await createNotification.mutateAsync({
+      type: form.type,
+      title: form.title.trim(),
+      body: form.body.trim(),
+      scheduledFor: form.scheduledFor ? new Date(form.scheduledFor).toISOString() : null
+    });
+    setForm({ type: "FAMILY_EVENT", title: "", body: "", scheduledFor: "" });
+  }
 
   return (
     <div className="grid gap-4">
+      <Card>
+        <CardContent>
+          <form className="grid gap-3" onSubmit={submitNotification}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-black text-ink">Create notification</h2>
+              <Badge tone="yellow">Alert</Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[12rem_1fr_15rem]">
+              <select className="min-h-12 rounded-lg border border-border-warm bg-white px-3 text-base font-bold text-ink" value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value as NotificationType }))}>
+                {["BIRTHDAY", "DEATH_ANNIVERSARY", "FAMILY_EVENT", "NEW_MEMORY", "MESSAGE"].map((type) => <option key={type} value={type}>{type.replace("_", " ")}</option>)}
+              </select>
+              <Input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Title" required />
+              <Input type="datetime-local" value={form.scheduledFor} onChange={(event) => setForm((current) => ({ ...current, scheduledFor: event.target.value }))} aria-label="Schedule time" />
+            </div>
+            <Textarea value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} placeholder="Message" required />
+            {createNotification.error ? <p className="font-bold text-[#C15A4A]">{createNotification.error.message}</p> : null}
+            <Button type="submit" disabled={createNotification.isPending}>
+              <Plus className="h-5 w-5" /> {createNotification.isPending ? "Creating..." : "Create notification"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {isLoading ? <Card><CardContent><p className="text-lg font-bold text-muted">Loading notifications...</p></CardContent></Card> : null}
+      {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
+
       {notifications.map((notification) => (
         <Card key={notification.id} className={notification.readAt ? "opacity-75" : ""}>
           <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

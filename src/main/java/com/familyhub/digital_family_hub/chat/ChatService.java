@@ -1,6 +1,9 @@
 package com.familyhub.digital_family_hub.chat;
 
 import com.familyhub.digital_family_hub.shared.audit.AuditLogService;
+import com.familyhub.digital_family_hub.users.AppUser;
+import com.familyhub.digital_family_hub.users.AppUserRepository;
+import java.security.Principal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -16,17 +19,20 @@ public class ChatService {
 
     private final ChatRoomRepository rooms;
     private final ChatMessageRepository messages;
+    private final AppUserRepository users;
     private final SimpMessagingTemplate messagingTemplate;
     private final AuditLogService auditLogService;
 
     public ChatService(
         ChatRoomRepository rooms,
         ChatMessageRepository messages,
+        AppUserRepository users,
         SimpMessagingTemplate messagingTemplate,
         AuditLogService auditLogService
     ) {
         this.rooms = rooms;
         this.messages = messages;
+        this.users = users;
         this.messagingTemplate = messagingTemplate;
         this.auditLogService = auditLogService;
     }
@@ -53,12 +59,13 @@ public class ChatService {
     }
 
     @Transactional
-    public MessageDTO.Response sendMessage(UUID roomId, MessageDTO.SendRequest request) {
+    public MessageDTO.Response sendMessage(UUID roomId, MessageDTO.SendRequest request, Principal principal) {
         ChatRoom room = rooms.findById(roomId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat room not found"));
 
         ChatMessage message = new ChatMessage();
         message.setRoom(room);
+        message.setSender(resolveSender(principal));
         message.setType(request.type());
         message.setBody(request.body());
         message.setMediaUrl(request.mediaUrl());
@@ -80,5 +87,13 @@ public class ChatService {
 
     private int normalizeSize(int size) {
         return Math.max(1, Math.min(size, 100));
+    }
+
+    private AppUser resolveSender(Principal principal) {
+        if (principal == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+        }
+        return users.findByEmailIgnoreCase(principal.getName())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user was not found"));
     }
 }

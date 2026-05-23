@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22 <24",
+    "npm": ">=10"
+  },
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
+    "dev": "cross-env NEXT_TELEMETRY_DISABLED=1 node node_modules/next/dist/bin/next dev --turbopack",
+    "build": "cross-env NEXT_TELEMETRY_DISABLED=1 node node_modules/next/dist/bin/next build",
+    "start": "cross-env NEXT_TELEMETRY_DISABLED=1 node node_modules/next/dist/bin/next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit"
   },
@@ -37,8 +41,10 @@
     "@types/react": "^19.1.5",
     "@types/react-dom": "^19.1.5",
     "@types/sockjs-client": "^1.5.4",
+    "cross-env": "^10.1.0",
     "eslint": "^9.27.0",
     "eslint-config-next": "^15.3.2",
+    "node": "^22.22.3",
     "tailwindcss": "^4.1.7",
     "typescript": "^5.8.3"
   }

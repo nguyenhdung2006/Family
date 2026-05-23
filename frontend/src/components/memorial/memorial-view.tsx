@@ -1,16 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { Flame, Heart } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { Flame, Heart, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useMemorialMembers, useTributes } from "@/features/memorial/hooks";
+import { Input, Textarea } from "@/components/ui/input";
+import { useCreateTribute, useMemorialMembers, useTributes } from "@/features/memorial/hooks";
 
 export function MemorialView() {
-  const { data: members = [] } = useMemorialMembers();
+  const { data: members = [], isLoading, error } = useMemorialMembers();
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [tributeForm, setTributeForm] = useState({ title: "", story: "" });
   const activeMember = members.find((member) => member.id === (selectedMemberId ?? members[0]?.id));
-  const { data: tributes = [] } = useTributes(activeMember?.id);
+  const { data: tributes = [], error: tributesError } = useTributes(activeMember?.id);
+  const createTribute = useCreateTribute(activeMember?.id ?? "");
+
+  async function submitTribute(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeMember || !tributeForm.title.trim() || !tributeForm.story.trim()) {
+      return;
+    }
+    await createTribute.mutateAsync({
+      title: tributeForm.title.trim(),
+      story: tributeForm.story.trim()
+    });
+    setTributeForm({ title: "", story: "" });
+  }
 
   return (
     <div className="grid gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">
@@ -19,6 +35,7 @@ export function MemorialView() {
           <Badge tone="yellow">Remembered with love</Badge>
           <h2 className="mt-3 text-3xl font-black text-ink">Memorial</h2>
           <div className="mt-5 grid gap-2">
+            {isLoading ? <p className="font-semibold text-muted">Loading memorial profiles...</p> : null}
             {members.map((member) => (
               <button
                 key={member.id}
@@ -30,6 +47,7 @@ export function MemorialView() {
               </button>
             ))}
             {!members.length ? <p className="font-semibold text-muted">No memorial profiles yet.</p> : null}
+            {error ? <p className="font-bold text-[#C15A4A]">{error.message}</p> : null}
           </div>
         </CardContent>
       </Card>
@@ -48,6 +66,25 @@ export function MemorialView() {
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
+          {activeMember ? (
+            <Card className="md:col-span-2">
+              <CardContent>
+                <form className="grid gap-3" onSubmit={submitTribute}>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xl font-black text-ink">Add tribute</h3>
+                    <Badge tone="sage">{activeMember.fullName}</Badge>
+                  </div>
+                  <Input value={tributeForm.title} onChange={(event) => setTributeForm((form) => ({ ...form, title: event.target.value }))} placeholder="Tribute title" required />
+                  <Textarea value={tributeForm.story} onChange={(event) => setTributeForm((form) => ({ ...form, story: event.target.value }))} placeholder="Story" required />
+                  {createTribute.error ? <p className="font-bold text-[#C15A4A]">{createTribute.error.message}</p> : null}
+                  <Button type="submit" disabled={createTribute.isPending}>
+                    <Plus className="h-5 w-5" /> {createTribute.isPending ? "Saving..." : "Save tribute"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          ) : null}
+          {tributesError ? <Card className="md:col-span-2"><CardContent><p className="font-bold text-[#C15A4A]">{tributesError.message}</p></CardContent></Card> : null}
           {tributes.map((tribute) => (
             <Card key={tribute.id}>
               <CardContent>

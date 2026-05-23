@@ -31,6 +31,8 @@ public final class MessageDTO {
     public record Response(
         UUID id,
         UUID roomId,
+        UUID senderId,
+        String senderName,
         MessageType type,
         String body,
         String mediaUrl,
@@ -41,6 +43,8 @@ public final class MessageDTO {
             return new Response(
                 message.getId(),
                 message.getRoom().getId(),
+                message.getSender() == null ? null : message.getSender().getId(),
+                message.getSender() == null ? null : message.getSender().getName(),
                 message.getType(),
                 message.getBody(),
                 message.getMediaUrl(),

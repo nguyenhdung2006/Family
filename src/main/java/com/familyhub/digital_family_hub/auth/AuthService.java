@@ -2,7 +2,9 @@ package com.familyhub.digital_family_hub.auth;
 
 import com.familyhub.digital_family_hub.users.AppUser;
 import com.familyhub.digital_family_hub.users.AppUserRepository;
+import com.familyhub.digital_family_hub.users.UserRole;
 import com.familyhub.digital_family_hub.shared.audit.AuditLogService;
+import java.util.List;
 import java.security.Principal;
 import java.util.Map;
 import java.util.Optional;
@@ -30,7 +32,9 @@ public class AuthService {
             return upsertOAuthUser(oauthToken);
         }
         if (principal != null) {
-            return new AuthDTO.CurrentUserResponse(null, principal.getName(), null, null);
+            AppUser user = users.findByEmailIgnoreCase(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user was not found"));
+            return currentUserResponse(user);
         }
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
     }
@@ -56,7 +60,19 @@ public class AuthService {
         AppUser saved = users.save(user);
         auditLogService.login(saved.getEmail());
 
-        return new AuthDTO.CurrentUserResponse(saved.getId(), saved.getName(), saved.getEmail(), saved.getAvatarUrl());
+        return currentUserResponse(saved);
+    }
+
+    private AuthDTO.CurrentUserResponse currentUserResponse(AppUser user) {
+        UserRole role = user.getRole();
+        return new AuthDTO.CurrentUserResponse(
+            user.getId(),
+            user.getName(),
+            user.getEmail(),
+            user.getAvatarUrl(),
+            role.name(),
+            List.of(role.name())
+        );
     }
 
     private String firstNonBlank(String value, String fallback) {

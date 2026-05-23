@@ -1,10 +1,10 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { FamilyTreeCanvas } from "@/components/family-tree/family-tree-canvas";
+import { FamilyTreePageClient } from "@/components/family-tree/family-tree-page-client";
 
 export default function FamilyTreePage() {
   return (
     <AppShell title="Family Tree">
-      <FamilyTreeCanvas />
+      <FamilyTreePageClient />
     </AppShell>
   );
 }

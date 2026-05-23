@@ -3,6 +3,8 @@ export type CurrentUser = {
   name: string;
   email: string | null;
   avatarUrl: string | null;
+  role: "ADMIN" | "MEMBER" | "VIEWER" | null;
+  roles: Array<"ADMIN" | "MEMBER" | "VIEWER">;
 };
 
 export type LoginOptions = {
