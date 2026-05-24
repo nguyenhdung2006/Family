@@ -8,3 +8,9 @@ export function getCurrentUser() {
 export function getLoginOptions() {
   return apiFetch<LoginOptions>("/api/auth/login-options");
 }
+
+export function logout() {
+  return apiFetch<void>("/auth/logout", {
+    method: "POST"
+  });
+}

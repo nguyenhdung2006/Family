@@ -1,9 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/queryKeys";
-import { getCurrentUser, getLoginOptions } from "@/features/auth/api";
+import { getCurrentUser, getLoginOptions, logout } from "@/features/auth/api";
+import { clearAccessToken } from "@/lib/auth/token";
+import { disconnectAllStompClients } from "@/lib/websocket/stomp-client";
 
 export function useCurrentUser() {
   return useQuery({
@@ -18,6 +20,19 @@ export function useLoginOptions() {
     queryKey: ["auth", "login-options"],
     queryFn: getLoginOptions,
     staleTime: 10 * 60_000
+  });
+}
+
+export function useLogout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: logout,
+    onSettled: async () => {
+      clearAccessToken();
+      await disconnectAllStompClients();
+      queryClient.clear();
+      window.location.assign("/login");
+    }
   });
 }
 

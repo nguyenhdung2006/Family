@@ -75,6 +75,11 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     return undefined as T;
   }
 
-  const envelope = (await response.json()) as ApiEnvelope<T>;
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  const envelope = JSON.parse(text) as ApiEnvelope<T>;
   return envelope.data;
 }

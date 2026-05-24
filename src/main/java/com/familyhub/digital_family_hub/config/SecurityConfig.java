@@ -28,15 +28,19 @@ public class SecurityConfig {
         OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler
     ) throws Exception {
         http
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**", "/ws/**"))
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**", "/auth/logout", "/ws", "/ws/**"))
             .cors(Customizer.withDefaults())
             .authorizeHttpRequests(authorize -> authorize
+                // Public probes and login metadata must stay reachable before HOMETREE_TOKEN exists.
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/auth/login-options").permitAll()
+                .requestMatchers(HttpMethod.POST, "/auth/logout", "/api/auth/logout").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // Family records are readable by VIEWER, but mutations are reserved for ADMIN.
                 .requestMatchers(HttpMethod.GET, "/api/family/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
                 .requestMatchers(HttpMethod.POST, "/api/family/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/family/**").hasRole("ADMIN")
+                // Content areas allow VIEWER reads while preserving write access for ADMIN and MEMBER.
                 .requestMatchers(HttpMethod.GET, "/api/timeline/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
                 .requestMatchers(HttpMethod.POST, "/api/timeline/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers(HttpMethod.GET, "/api/albums/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
@@ -53,7 +57,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/kitchen/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers(HttpMethod.PUT, "/api/kitchen/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers("/api/**").authenticated()
-                .requestMatchers("/ws/**").hasAnyRole("ADMIN", "MEMBER")
+                // WebSocket role matrix: ADMIN/MEMBER/VIEWER may handshake; STOMP rules below block VIEWER from
+                // message-producing /app/** sends and restricted /topic/rooms/** subscriptions.
+                .requestMatchers("/ws", "/ws/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
                 .anyRequest().permitAll()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
