@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MemoryCard } from "@/components/timeline/memory-card";
 import { MemoryComposer } from "@/components/timeline/memory-composer";
+import { useCurrentUser } from "@/features/auth/hooks";
 import { useTimelinePosts } from "@/features/timeline/hooks";
 import type { EventType } from "@/features/timeline/types";
 
@@ -18,12 +19,14 @@ export function TimelineFeed() {
     () => ({ page: 0, size: 30, year: year ? Number(year) : undefined, eventType: eventType || undefined }),
     [eventType, year]
   );
+  const { data: user } = useCurrentUser();
   const { data: posts = [], isLoading } = useTimelinePosts(filters);
+  const isViewer = user?.role === "VIEWER";
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="grid gap-5">
-        <MemoryComposer />
+        {!isViewer ? <MemoryComposer /> : null}
         {isLoading ? (
           <Card><CardContent><p className="font-bold text-muted">Loading memories...</p></CardContent></Card>
         ) : posts.length ? (

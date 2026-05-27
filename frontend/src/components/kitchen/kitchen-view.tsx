@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormError, FormHint } from "@/components/forms/form-status";
 import { Input, Textarea } from "@/components/ui/input";
+import { useCurrentUser } from "@/features/auth/hooks";
 import { useCreateRecipe, useRecipes, useUpdateRecipe } from "@/features/kitchen/hooks";
 import type { Recipe } from "@/features/kitchen/types";
 
 export function KitchenView() {
+  const { data: user } = useCurrentUser();
   const { data: recipes = [], isLoading, error } = useRecipes();
   const createRecipe = useCreateRecipe();
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
@@ -25,6 +27,7 @@ export function KitchenView() {
     videoUrl: "",
     notesFromElders: ""
   });
+  const isViewer = user?.role === "VIEWER";
 
   async function submitRecipe(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,6 +77,7 @@ export function KitchenView() {
         </CardContent>
       </Card>
 
+      {!isViewer ? (
       <Card>
         <CardContent>
           <form className="grid gap-3" onSubmit={submitRecipe}>
@@ -108,6 +112,7 @@ export function KitchenView() {
           </form>
         </CardContent>
       </Card>
+      ) : null}
 
       {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
       {isLoading ? <Card><CardContent><p className="font-bold text-muted">Loading recipes...</p></CardContent></Card> : null}
@@ -121,9 +126,11 @@ export function KitchenView() {
             <CardContent>
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-2xl font-black text-ink">{recipe.title}</h3>
+                {!isViewer ? (
                 <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${recipe.title}`} onClick={() => startEditRecipe(recipe)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
+                ) : null}
               </div>
               <p className="mt-2 line-clamp-3 font-semibold leading-7 text-muted">{recipe.description ?? recipe.notesFromElders ?? "A family recipe."}</p>
               <div className="mt-4 grid gap-3">

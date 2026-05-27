@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormError, FormHint } from "@/components/forms/form-status";
 import { Input, Textarea } from "@/components/ui/input";
+import { useCurrentUser } from "@/features/auth/hooks";
 import { useCreateTribute, useMemorialMembers, useTributes, useUpdateTribute } from "@/features/memorial/hooks";
 import type { Tribute } from "@/features/memorial/types";
 
 export function MemorialView() {
+  const { data: user } = useCurrentUser();
   const { data: members = [], isLoading, error } = useMemorialMembers();
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [tributeForm, setTributeForm] = useState({ title: "", story: "" });
@@ -21,6 +23,7 @@ export function MemorialView() {
   const editingTribute = tributes.find((tribute) => tribute.id === editingTributeId);
   const createTribute = useCreateTribute(activeMember?.id ?? "");
   const updateTribute = useUpdateTribute(activeMember?.id ?? "", editingTributeId ?? "");
+  const isViewer = user?.role === "VIEWER";
 
   async function submitTribute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,7 +92,7 @@ export function MemorialView() {
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {activeMember ? (
+          {activeMember && !isViewer ? (
             <Card className="md:col-span-2">
               <CardContent>
                 <form className="grid gap-3" onSubmit={submitTribute}>
@@ -123,9 +126,11 @@ export function MemorialView() {
               <CardContent>
                 <div className="flex items-start justify-between gap-3">
                   <Heart className="h-6 w-6 text-wood" />
+                  {!isViewer ? (
                   <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${tribute.title}`} onClick={() => startEditTribute(tribute)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  ) : null}
                 </div>
                 <h3 className="mt-3 text-2xl font-black text-ink">{tribute.title}</h3>
                 <p className="mt-2 whitespace-pre-wrap text-base font-semibold leading-8 text-muted">{tribute.story}</p>

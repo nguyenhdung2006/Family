@@ -6,11 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
+import { useCurrentUser } from "@/features/auth/hooks";
 import { useCreateNotification, useMarkNotificationRead, useNotifications } from "@/features/notifications/hooks";
 import type { NotificationType } from "@/features/notifications/types";
 import { formatFamilyDate } from "@/lib/utils/date";
 
 export function NotificationsView() {
+  const { data: user } = useCurrentUser();
   const { data: notifications = [], isLoading, error } = useNotifications();
   const markRead = useMarkNotificationRead();
   const createNotification = useCreateNotification();
@@ -20,6 +22,7 @@ export function NotificationsView() {
     body: "",
     scheduledFor: ""
   });
+  const isViewer = user?.role === "VIEWER";
 
   async function submitNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,6 +40,7 @@ export function NotificationsView() {
 
   return (
     <div className="grid gap-4">
+      {!isViewer ? (
       <Card>
         <CardContent>
           <form className="grid gap-3" onSubmit={submitNotification}>
@@ -59,6 +63,7 @@ export function NotificationsView() {
           </form>
         </CardContent>
       </Card>
+      ) : null}
 
       {isLoading ? <Card><CardContent><p className="text-lg font-bold text-muted">Loading notifications...</p></CardContent></Card> : null}
       {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
@@ -79,7 +84,7 @@ export function NotificationsView() {
                 {notification.scheduledFor ? <p className="mt-1 text-sm font-bold text-muted">{formatFamilyDate(notification.scheduledFor)}</p> : null}
               </div>
             </div>
-            {!notification.readAt ? (
+            {!notification.readAt && !isViewer ? (
               <Button variant="secondary" onClick={() => markRead.mutate(notification.id)}>
                 <Check className="h-5 w-5" /> Mark read
               </Button>

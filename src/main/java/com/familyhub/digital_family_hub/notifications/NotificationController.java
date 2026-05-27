@@ -2,6 +2,7 @@ package com.familyhub.digital_family_hub.notifications;
 
 import com.familyhub.digital_family_hub.shared.api.ApiResponse;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -25,8 +26,8 @@ public class NotificationController {
     }
 
     @GetMapping
-    public ApiResponse<List<NotificationDTO.Response>> listNotifications() {
-        return ApiResponse.ok(notificationService.listNotifications());
+    public ApiResponse<List<NotificationDTO.Response>> listNotifications(Principal principal) {
+        return ApiResponse.ok(notificationService.listNotifications(principal));
     }
 
     @PostMapping
@@ -38,7 +39,7 @@ public class NotificationController {
     }
 
     @PatchMapping("/{id}/read")
-    public ApiResponse<NotificationDTO.Response> markRead(@PathVariable UUID id) {
-        return ApiResponse.ok(notificationService.markRead(id));
+    public ApiResponse<NotificationDTO.Response> markRead(@PathVariable UUID id, Principal principal) {
+        return ApiResponse.ok(notificationService.markRead(id, principal));
     }
 }

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { FormError, FormHint } from "@/components/forms/form-status";
+import { useCurrentUser } from "@/features/auth/hooks";
 import { useCreateFamilyMember, useCreateFamilyRelationship, useFamilyMembers, useUpdateFamilyMember, useUpdateFamilyRelationship } from "@/features/family/hooks";
 import { buildFamilyGraph } from "@/features/family/graph";
 import { listRelationships } from "@/features/family/api";
@@ -65,6 +66,7 @@ export function FamilyTreeCanvas() {
   const [editingRelationshipId, setEditingRelationshipId] = useState<string | null>(null);
   const [relationshipValidation, setRelationshipValidation] = useState<string | null>(null);
   const { selectedMemberId, setSelectedMemberId } = useTreeStore();
+  const { data: user } = useCurrentUser();
   const { data: members = [], isLoading, error } = useFamilyMembers({ page: 0, size: 250 });
   const createMember = useCreateFamilyMember();
   const createRelationship = useCreateFamilyRelationship();
@@ -110,6 +112,7 @@ export function FamilyTreeCanvas() {
   const selectedMember = members.find((member) => member.id === selectedMemberId);
   const editingMember = members.find((member) => member.id === editingMemberId);
   const editingRelationship = relationships.find((relationship) => relationship.id === editingRelationshipId);
+  const isViewer = user?.role === "VIEWER";
 
   async function submitMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -189,6 +192,7 @@ export function FamilyTreeCanvas() {
 
   return (
     <div className="grid gap-5">
+      {!isViewer ? (
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
           <CardContent>
@@ -269,7 +273,9 @@ export function FamilyTreeCanvas() {
           </CardContent>
         </Card>
       </div>
+      ) : null}
 
+      {!isViewer ? (
       <Card>
         <CardContent>
           <div className="flex items-center justify-between gap-3">
@@ -307,6 +313,7 @@ export function FamilyTreeCanvas() {
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
       {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
 

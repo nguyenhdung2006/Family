@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CheckCheck, Pencil, Plus, Send, Smile, X } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,11 @@ export function MessengerView() {
   const markSeen = useMarkMessageSeen();
   const createRoom = useCreateChatRoom();
   const updateRoom = useUpdateChatRoom(editingRoomId ?? "");
+  const isViewer = user?.role === "VIEWER";
+  const chronologicalMessages = useMemo(
+    () => [...messages].sort((left, right) => messageTimestamp(left.deliveredAt) - messageTimestamp(right.deliveredAt)),
+    [messages]
+  );
 
   useRoomSocket(roomId);
 
@@ -41,11 +46,14 @@ export function MessengerView() {
   }, [activeRoomId, rooms, setActiveRoomId]);
 
   useEffect(() => {
-    const latest = [...messages].reverse().find((message) => !message.seenAt && !message.optimistic && message.senderId !== user?.id);
+    if (isViewer) {
+      return;
+    }
+    const latest = [...chronologicalMessages].reverse().find((message) => !message.seenAt && !message.optimistic && message.senderId !== user?.id);
     if (latest) {
       markSeen.mutate(latest.id);
     }
-  }, [markSeen, messages, user?.id]);
+  }, [chronologicalMessages, isViewer, markSeen, user?.id]);
 
   async function submitRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -106,6 +114,7 @@ export function MessengerView() {
           <h2 className="text-2xl font-black text-ink">Messages</h2>
           <p className="font-semibold text-muted">Family rooms and daily check-ins</p>
         </div>
+        {!isViewer ? (
         <form className="grid gap-2 border-b border-border-warm p-3" onSubmit={submitRoom}>
           <div className="flex items-center justify-between gap-2">
             <div>
@@ -138,6 +147,7 @@ export function MessengerView() {
           </div>
           <FormError message={roomValidation ?? createRoom.error?.message ?? updateRoom.error?.message} />
         </form>
+        ) : null}
         <div className="h-[calc(100%-17rem)] overflow-y-auto p-2 hometree-scrollbar">
           {roomsLoading ? <p className="p-4 font-semibold text-muted">Loading rooms...</p> : null}
           {roomsError ? <p className="p-4 font-bold text-[#C15A4A]">{roomsError.message}</p> : null}
@@ -156,9 +166,11 @@ export function MessengerView() {
                   <p className="text-sm font-bold text-muted">{room.type.toLowerCase()} room</p>
                 </div>
               </button>
+              {!isViewer ? (
               <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${room.name}`} onClick={() => startEditRoom(room.id)}>
                 <Pencil className="h-4 w-4" />
               </Button>
+              ) : null}
             </div>
           ))}
           {!rooms.length ? <p className="p-4 font-semibold text-muted">No chat rooms yet.</p> : null}
@@ -176,7 +188,7 @@ export function MessengerView() {
 
         <div className="overflow-y-auto bg-[#FFFDF7] p-4 hometree-scrollbar">
           <div className="mx-auto grid max-w-3xl gap-3">
-            {messages.map((message) => {
+            {chronologicalMessages.map((message) => {
               const own = Boolean(message.optimistic || (message.senderId && user?.id && message.senderId === user.id));
               return (
                 <div key={message.id} className={cn("flex", own ? "justify-end" : "justify-start")}>
@@ -197,6 +209,7 @@ export function MessengerView() {
           </div>
         </div>
 
+        {!isViewer ? (
         <form className="flex items-center gap-2 border-t border-border-warm bg-white p-3" onSubmit={submit}>
           <Button variant="ghost" size="icon" aria-label="Emoji">
             <Smile className="h-5 w-5" />
@@ -211,7 +224,16 @@ export function MessengerView() {
             <Send className="h-5 w-5" />
           </Button>
         </form>
+        ) : null}
       </section>
     </Card>
   );
+}
+
+function messageTimestamp(value: string | null) {
+  if (!value) {
+    return 0;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }

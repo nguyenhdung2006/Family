@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormError, FormHint } from "@/components/forms/form-status";
 import { Input, Textarea } from "@/components/ui/input";
+import { useCurrentUser } from "@/features/auth/hooks";
 import { useAlbumMedia, useAlbums, useAttachAlbumMedia, useCreateAlbum, useUpdateAlbum, useUploadMedia } from "@/features/albums/hooks";
 import type { Album, AlbumCategory } from "@/features/albums/types";
 
@@ -24,6 +25,7 @@ type UploadState = {
 };
 
 export function AlbumsGallery() {
+  const { data: user } = useCurrentUser();
   const { data: albums = [], isLoading, error } = useAlbums();
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
@@ -43,6 +45,7 @@ export function AlbumsGallery() {
   const updateAlbum = useUpdateAlbum(editingAlbumId ?? "");
   const uploadMedia = useUploadMedia();
   const attachMedia = useAttachAlbumMedia(featuredAlbum?.id ?? "");
+  const isViewer = user?.role === "VIEWER";
 
   useEffect(() => {
     return () => {
@@ -138,13 +141,16 @@ export function AlbumsGallery() {
               Keep holidays, weddings, everyday meals, and tiny ordinary moments in one gentle place.
             </p>
           </div>
+          {!isViewer ? (
           <Button disabled={!featuredAlbum || uploadMedia.isPending || attachMedia.isPending} onClick={() => fileInputRef.current?.click()}>
             <ImagePlus className="h-5 w-5" /> {uploadMedia.isPending || attachMedia.isPending ? "Uploading..." : "Upload"}
           </Button>
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(event) => void handleFileChange(event.target.files?.[0])} />
+          ) : null}
+          {!isViewer ? <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(event) => void handleFileChange(event.target.files?.[0])} /> : null}
         </CardContent>
       </Card>
 
+      {!isViewer ? (
       <Card>
         <CardContent>
           <form className="grid gap-3" onSubmit={submitAlbum}>
@@ -176,8 +182,9 @@ export function AlbumsGallery() {
           </form>
         </CardContent>
       </Card>
+      ) : null}
 
-      {featuredAlbum ? (
+      {featuredAlbum && !isViewer ? (
         <Card>
           <CardContent className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
             <div>
@@ -240,9 +247,11 @@ export function AlbumsGallery() {
                     <Badge tone="sage">{album.category}</Badge>
                     <h3 className="mt-3 text-2xl font-black text-ink">{album.title}</h3>
                   </div>
+                  {!isViewer ? (
                   <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${album.title}`} onClick={() => startEditAlbum(album)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  ) : null}
                 </div>
                 <button className="mt-2 line-clamp-2 text-left font-semibold leading-7 text-muted" onClick={() => setSelectedAlbum(album)}>
                   {album.description ?? "Family photos and memories."}
