@@ -2,6 +2,8 @@ export type NotificationType = "BIRTHDAY" | "DEATH_ANNIVERSARY" | "FAMILY_EVENT"
 
 export type InAppNotification = {
   id: string;
+  createdById: string | null;
+  createdByName: string | null;
   type: NotificationType;
   title: string;
   body: string;
@@ -15,3 +17,5 @@ export type CreateNotificationInput = {
   body: string;
   scheduledFor?: string | null;
 };
+
+export type UpdateNotificationInput = CreateNotificationInput;

@@ -10,7 +10,9 @@ import static org.mockito.Mockito.when;
 
 import com.familyhub.digital_family_hub.users.AppUser;
 import com.familyhub.digital_family_hub.users.AppUserRepository;
+import com.familyhub.digital_family_hub.users.UserRole;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -55,6 +57,103 @@ class NotificationServiceTest {
     }
 
     @Test
+    void createNotificationAssignsCurrentUserAsOwner() {
+        AppUser user = user(UUID.randomUUID(), "member@example.com");
+        when(users.findByEmailIgnoreCase(user.getEmail())).thenReturn(Optional.of(user));
+        when(notifications.save(any(InAppNotification.class))).thenAnswer(invocation -> {
+            InAppNotification saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+
+        NotificationDTO.Response response = service.createNotification(request("Family dinner"), principal(user.getEmail()));
+
+        assertThat(response.createdById()).isEqualTo(user.getId());
+        assertThat(response.title()).isEqualTo("Family dinner");
+    }
+
+    @Test
+    void updateNotificationAllowsOwner() {
+        AppUser user = user(UUID.randomUUID(), "member@example.com");
+        UUID notificationId = UUID.randomUUID();
+        InAppNotification notification = notification(notificationId, user);
+        when(users.findByEmailIgnoreCase(user.getEmail())).thenReturn(Optional.of(user));
+        when(notifications.findById(notificationId)).thenReturn(Optional.of(notification));
+        when(notifications.save(any(InAppNotification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        NotificationDTO.Response response = service.updateNotification(
+            notificationId,
+            request("Updated dinner"),
+            principal(user.getEmail())
+        );
+
+        assertThat(response.id()).isEqualTo(notificationId);
+        assertThat(response.createdById()).isEqualTo(user.getId());
+        assertThat(response.title()).isEqualTo("Updated dinner");
+        verify(notifications).save(notification);
+    }
+
+    @Test
+    void updateNotificationHidesNotificationsOwnedByAnotherUser() {
+        AppUser currentUser = user(UUID.randomUUID(), "member@example.com");
+        AppUser otherUser = user(UUID.randomUUID(), "other@example.com");
+        UUID notificationId = UUID.randomUUID();
+        when(users.findByEmailIgnoreCase(currentUser.getEmail())).thenReturn(Optional.of(currentUser));
+        when(notifications.findById(notificationId)).thenReturn(Optional.of(notification(notificationId, otherUser)));
+
+        assertThatThrownBy(() -> service.updateNotification(notificationId, request("Nope"), principal(currentUser.getEmail())))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(exception ->
+                assertThat(((ResponseStatusException) exception).getStatusCode().value()).isEqualTo(404)
+            );
+        verify(notifications, never()).save(any());
+    }
+
+    @Test
+    void deleteNotificationAllowsOwner() {
+        AppUser user = user(UUID.randomUUID(), "member@example.com");
+        UUID notificationId = UUID.randomUUID();
+        InAppNotification notification = notification(notificationId, user);
+        when(users.findByEmailIgnoreCase(user.getEmail())).thenReturn(Optional.of(user));
+        when(notifications.findById(notificationId)).thenReturn(Optional.of(notification));
+
+        service.deleteNotification(notificationId, principal(user.getEmail()));
+
+        verify(notifications).delete(notification);
+    }
+
+    @Test
+    void deleteNotificationAllowsAdminForAnyNotification() {
+        AppUser admin = user(UUID.randomUUID(), "admin@example.com");
+        admin.setRole(UserRole.ADMIN);
+        AppUser owner = user(UUID.randomUUID(), "member@example.com");
+        UUID notificationId = UUID.randomUUID();
+        InAppNotification notification = notification(notificationId, owner);
+        when(users.findByEmailIgnoreCase(admin.getEmail())).thenReturn(Optional.of(admin));
+        when(notifications.findById(notificationId)).thenReturn(Optional.of(notification));
+
+        service.deleteNotification(notificationId, principal(admin.getEmail()));
+
+        verify(notifications).delete(notification);
+    }
+
+    @Test
+    void deleteNotificationHidesNotificationsOwnedByAnotherUser() {
+        AppUser currentUser = user(UUID.randomUUID(), "member@example.com");
+        AppUser otherUser = user(UUID.randomUUID(), "other@example.com");
+        UUID notificationId = UUID.randomUUID();
+        when(users.findByEmailIgnoreCase(currentUser.getEmail())).thenReturn(Optional.of(currentUser));
+        when(notifications.findById(notificationId)).thenReturn(Optional.of(notification(notificationId, otherUser)));
+
+        assertThatThrownBy(() -> service.deleteNotification(notificationId, principal(currentUser.getEmail())))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(exception ->
+                assertThat(((ResponseStatusException) exception).getStatusCode().value()).isEqualTo(404)
+            );
+        verify(notifications, never()).delete(any());
+    }
+
+    @Test
     void markReadHidesNotificationsOwnedByAnotherUser() {
         AppUser currentUser = user(UUID.randomUUID(), "member@example.com");
         AppUser otherUser = user(UUID.randomUUID(), "other@example.com");
@@ -91,5 +190,14 @@ class NotificationServiceTest {
         notification.setTitle("Family dinner");
         notification.setBody("Dinner at 7");
         return notification;
+    }
+
+    private NotificationDTO.Request request(String title) {
+        return new NotificationDTO.Request(
+            NotificationType.FAMILY_EVENT,
+            title,
+            "Dinner at 7",
+            Instant.parse("2026-05-28T10:00:00Z")
+        );
     }
 }

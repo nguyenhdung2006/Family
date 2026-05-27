@@ -21,6 +21,8 @@ public final class NotificationDTO {
 
     public record Response(
         UUID id,
+        UUID createdById,
+        String createdByName,
         NotificationType type,
         String title,
         String body,
@@ -30,6 +32,8 @@ public final class NotificationDTO {
         public static Response from(InAppNotification notification) {
             return new Response(
                 notification.getId(),
+                notification.getRecipient() != null ? notification.getRecipient().getId() : null,
+                notification.getRecipient() != null ? notification.getRecipient().getName() : null,
                 notification.getType(),
                 notification.getTitle(),
                 notification.getBody(),
