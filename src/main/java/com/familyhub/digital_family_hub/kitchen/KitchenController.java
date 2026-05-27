@@ -6,6 +6,8 @@ import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,8 +41,15 @@ public class KitchenController {
     @PutMapping("/{recipeId}")
     public ApiResponse<RecipeDTO.Response> updateRecipe(
         @PathVariable UUID recipeId,
-        @Valid @RequestBody RecipeDTO.Request request
+        @Valid @RequestBody RecipeDTO.Request request,
+        Principal principal
     ) {
-        return ApiResponse.ok(kitchenService.updateRecipe(recipeId, request));
+        return ApiResponse.ok(kitchenService.updateRecipe(recipeId, request, principal));
+    }
+
+    @DeleteMapping("/{recipeId}")
+    public ResponseEntity<Void> deleteRecipe(@PathVariable UUID recipeId, Principal principal) {
+        kitchenService.deleteRecipe(recipeId, principal);
+        return ResponseEntity.noContent().build();
     }
 }

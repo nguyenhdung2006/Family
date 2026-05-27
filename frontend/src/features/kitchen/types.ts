@@ -1,5 +1,7 @@
 export type Recipe = {
   id: string;
+  createdById: string | null;
+  createdByName: string | null;
   title: string;
   description: string | null;
   ingredients: string;

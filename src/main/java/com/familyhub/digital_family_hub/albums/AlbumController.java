@@ -6,6 +6,8 @@ import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,9 +47,16 @@ public class AlbumController {
     @PutMapping("/{albumId}")
     public ApiResponse<AlbumDTO.Response> updateAlbum(
         @PathVariable UUID albumId,
-        @Valid @RequestBody AlbumDTO.Request request
+        @Valid @RequestBody AlbumDTO.Request request,
+        Principal principal
     ) {
-        return ApiResponse.ok(albumService.updateAlbum(albumId, request));
+        return ApiResponse.ok(albumService.updateAlbum(albumId, request, principal));
+    }
+
+    @DeleteMapping("/{albumId}")
+    public ResponseEntity<Void> deleteAlbum(@PathVariable UUID albumId, Principal principal) {
+        albumService.deleteAlbum(albumId, principal);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{albumId}/media")
@@ -63,5 +72,15 @@ public class AlbumController {
         Principal principal
     ) {
         return ApiResponse.created(albumService.attachMedia(albumId, request, principal));
+    }
+
+    @DeleteMapping("/{albumId}/media/{mediaId}")
+    public ResponseEntity<Void> removeMedia(
+        @PathVariable UUID albumId,
+        @PathVariable UUID mediaId,
+        Principal principal
+    ) {
+        albumService.removeMedia(albumId, mediaId, principal);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { attachAlbumMedia, createAlbum, listAlbumMedia, listAlbums, updateAlbum, uploadMedia } from "@/features/albums/api";
+import { attachAlbumMedia, createAlbum, deleteAlbum, listAlbumMedia, listAlbums, removeAlbumMedia, updateAlbum, uploadMedia } from "@/features/albums/api";
 import type { AlbumCategory } from "@/features/albums/types";
 import { queryKeys } from "@/lib/api/queryKeys";
 
@@ -36,10 +36,29 @@ export function useUpdateAlbum(albumId: string) {
   });
 }
 
+export function useDeleteAlbum() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteAlbum,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["albums"] })
+  });
+}
+
 export function useAttachAlbumMedia(albumId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: Parameters<typeof attachAlbumMedia>[1]) => attachAlbumMedia(albumId, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.albumMedia(albumId) });
+      queryClient.invalidateQueries({ queryKey: ["albums"] });
+    }
+  });
+}
+
+export function useRemoveAlbumMedia(albumId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (mediaId: string) => removeAlbumMedia(albumId, mediaId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.albumMedia(albumId) });
       queryClient.invalidateQueries({ queryKey: ["albums"] });

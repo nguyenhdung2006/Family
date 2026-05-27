@@ -18,3 +18,9 @@ export function updateRecipe(recipeId: string, input: UpdateRecipeInput) {
     body: input
   });
 }
+
+export function deleteRecipe(recipeId: string) {
+  return apiFetch<void>(`/api/kitchen/recipes/${recipeId}`, {
+    method: "DELETE"
+  });
+}

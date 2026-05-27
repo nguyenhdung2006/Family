@@ -1,20 +1,22 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { ChefHat, Pencil, PlayCircle, Plus, X } from "lucide-react";
+import { ChefHat, Pencil, PlayCircle, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormError, FormHint } from "@/components/forms/form-status";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUser } from "@/features/auth/hooks";
-import { useCreateRecipe, useRecipes, useUpdateRecipe } from "@/features/kitchen/hooks";
+import type { CurrentUser } from "@/features/auth/types";
+import { useCreateRecipe, useDeleteRecipe, useRecipes, useUpdateRecipe } from "@/features/kitchen/hooks";
 import type { Recipe } from "@/features/kitchen/types";
 
 export function KitchenView() {
   const { data: user } = useCurrentUser();
   const { data: recipes = [], isLoading, error } = useRecipes();
   const createRecipe = useCreateRecipe();
+  const deleteRecipe = useDeleteRecipe();
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const editingRecipe = recipes.find((recipe) => recipe.id === editingRecipeId);
   const updateRecipe = useUpdateRecipe(editingRecipeId ?? "");
@@ -47,6 +49,9 @@ export function KitchenView() {
   }
 
   function startEditRecipe(recipe: Recipe) {
+    if (!canManageRecipe(recipe, user)) {
+      return;
+    }
     setEditingRecipeId(recipe.id);
     setValidation(null);
     setForm({
@@ -63,6 +68,16 @@ export function KitchenView() {
     setEditingRecipeId(null);
     setValidation(null);
     setForm({ title: "", description: "", ingredients: "", instructions: "", videoUrl: "", notesFromElders: "" });
+  }
+
+  async function handleDeleteRecipe(recipe: Recipe) {
+    if (!canManageRecipe(recipe, user) || !window.confirm(`Delete ${recipe.title}?`)) {
+      return;
+    }
+    await deleteRecipe.mutateAsync(recipe.id);
+    if (editingRecipeId === recipe.id) {
+      cancelEditRecipe();
+    }
   }
 
   return (
@@ -115,6 +130,7 @@ export function KitchenView() {
       ) : null}
 
       {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
+      {deleteRecipe.error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{deleteRecipe.error.message}</p></CardContent></Card> : null}
       {isLoading ? <Card><CardContent><p className="font-bold text-muted">Loading recipes...</p></CardContent></Card> : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -126,10 +142,15 @@ export function KitchenView() {
             <CardContent>
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-2xl font-black text-ink">{recipe.title}</h3>
-                {!isViewer ? (
-                <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${recipe.title}`} onClick={() => startEditRecipe(recipe)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                {canManageRecipe(recipe, user) ? (
+                <div className="flex gap-2">
+                  <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${recipe.title}`} onClick={() => startEditRecipe(recipe)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="danger" size="icon" aria-label={`Delete ${recipe.title}`} disabled={deleteRecipe.isPending} onClick={() => void handleDeleteRecipe(recipe)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
                 ) : null}
               </div>
               <p className="mt-2 line-clamp-3 font-semibold leading-7 text-muted">{recipe.description ?? recipe.notesFromElders ?? "A family recipe."}</p>
@@ -172,4 +193,8 @@ function recipePayload(form: {
     videoUrl: form.videoUrl.trim() || null,
     notesFromElders: form.notesFromElders.trim() || null
   };
+}
+
+function canManageRecipe(recipe: Recipe, user?: CurrentUser) {
+  return user?.role === "ADMIN" || (user?.role === "MEMBER" && Boolean(user.id) && recipe.createdById === user.id);
 }

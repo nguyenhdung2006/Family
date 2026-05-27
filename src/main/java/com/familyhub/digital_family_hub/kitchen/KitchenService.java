@@ -2,6 +2,7 @@ package com.familyhub.digital_family_hub.kitchen;
 
 import com.familyhub.digital_family_hub.users.AppUser;
 import com.familyhub.digital_family_hub.users.AppUserRepository;
+import com.familyhub.digital_family_hub.users.UserRole;
 import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
@@ -36,11 +37,18 @@ public class KitchenService {
     }
 
     @Transactional
-    public RecipeDTO.Response updateRecipe(UUID recipeId, RecipeDTO.Request request) {
-        Recipe recipe = recipes.findById(recipeId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Recipe not found"));
+    public RecipeDTO.Response updateRecipe(UUID recipeId, RecipeDTO.Request request, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
+        Recipe recipe = findRecipeForMutation(recipeId, currentUser);
         applyRecipeRequest(recipe, request);
         return RecipeDTO.Response.from(recipes.save(recipe));
+    }
+
+    @Transactional
+    public void deleteRecipe(UUID recipeId, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
+        Recipe recipe = findRecipeForMutation(recipeId, currentUser);
+        recipes.delete(recipe);
     }
 
     private void applyRecipeRequest(Recipe recipe, RecipeDTO.Request request) {
@@ -58,5 +66,21 @@ public class KitchenService {
         }
         return users.findByEmailIgnoreCase(principal.getName())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user was not found"));
+    }
+
+    private Recipe findRecipeForMutation(UUID recipeId, AppUser currentUser) {
+        Recipe recipe = recipes.findById(recipeId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Recipe not found"));
+        if (!canMutateRecipe(recipe, currentUser)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Recipe not found");
+        }
+        return recipe;
+    }
+
+    private boolean canMutateRecipe(Recipe recipe, AppUser currentUser) {
+        if (currentUser.getRole() == UserRole.ADMIN) {
+            return true;
+        }
+        return recipe.getCreatedBy() != null && recipe.getCreatedBy().getId().equals(currentUser.getId());
     }
 }

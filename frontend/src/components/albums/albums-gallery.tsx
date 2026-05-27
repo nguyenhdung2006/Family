@@ -2,14 +2,15 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ImagePlus, Pencil, Play, Plus, X } from "lucide-react";
+import { ImagePlus, Pencil, Play, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormError, FormHint } from "@/components/forms/form-status";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUser } from "@/features/auth/hooks";
-import { useAlbumMedia, useAlbums, useAttachAlbumMedia, useCreateAlbum, useUpdateAlbum, useUploadMedia } from "@/features/albums/hooks";
+import { useAlbumMedia, useAlbums, useAttachAlbumMedia, useCreateAlbum, useDeleteAlbum, useRemoveAlbumMedia, useUpdateAlbum, useUploadMedia } from "@/features/albums/hooks";
+import type { CurrentUser } from "@/features/auth/types";
 import type { Album, AlbumCategory } from "@/features/albums/types";
 
 type UploadState = {
@@ -43,9 +44,12 @@ export function AlbumsGallery() {
   const editingAlbum = albums.find((album) => album.id === editingAlbumId);
   const createAlbum = useCreateAlbum();
   const updateAlbum = useUpdateAlbum(editingAlbumId ?? "");
+  const deleteAlbum = useDeleteAlbum();
   const uploadMedia = useUploadMedia();
   const attachMedia = useAttachAlbumMedia(featuredAlbum?.id ?? "");
+  const removeMedia = useRemoveAlbumMedia(featuredAlbum?.id ?? "");
   const isViewer = user?.role === "VIEWER";
+  const canManageFeaturedAlbum = featuredAlbum ? canManageAlbum(featuredAlbum, user) : false;
 
   useEffect(() => {
     return () => {
@@ -83,6 +87,29 @@ export function AlbumsGallery() {
     setEditingAlbumId(null);
     setAlbumValidation(null);
     setAlbumForm({ title: "", description: "", category: "EVERYDAY" });
+  }
+
+  async function handleDeleteAlbum(album: Album) {
+    if (!window.confirm(`Delete ${album.title}?`)) {
+      return;
+    }
+    await deleteAlbum.mutateAsync(album.id);
+    if (selectedAlbum?.id === album.id) {
+      setSelectedAlbum(null);
+    }
+    if (editingAlbumId === album.id) {
+      cancelEditAlbum();
+    }
+  }
+
+  async function handleRemoveMedia(mediaId: string) {
+    if (!featuredAlbum || !window.confirm("Remove this media from the album?")) {
+      return;
+    }
+    await removeMedia.mutateAsync(mediaId);
+    if (selectedMedia?.id === mediaId) {
+      setSelectedMediaIndex(null);
+    }
   }
 
   async function handleFileChange(file?: File) {
@@ -141,7 +168,7 @@ export function AlbumsGallery() {
               Keep holidays, weddings, everyday meals, and tiny ordinary moments in one gentle place.
             </p>
           </div>
-          {!isViewer ? (
+          {canManageFeaturedAlbum ? (
           <Button disabled={!featuredAlbum || uploadMedia.isPending || attachMedia.isPending} onClick={() => fileInputRef.current?.click()}>
             <ImagePlus className="h-5 w-5" /> {uploadMedia.isPending || attachMedia.isPending ? "Uploading..." : "Upload"}
           </Button>
@@ -184,7 +211,7 @@ export function AlbumsGallery() {
       </Card>
       ) : null}
 
-      {featuredAlbum && !isViewer ? (
+      {featuredAlbum && canManageFeaturedAlbum ? (
         <Card>
           <CardContent className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
             <div>
@@ -222,12 +249,15 @@ export function AlbumsGallery() {
                 </div>
               </div>
             ) : null}
-            {uploadMedia.error || attachMedia.error ? <p className="font-bold text-[#C15A4A] md:col-span-2">{uploadMedia.error?.message ?? attachMedia.error?.message}</p> : null}
+            {uploadMedia.error || attachMedia.error || removeMedia.error ? (
+              <p className="font-bold text-[#C15A4A] md:col-span-2">{uploadMedia.error?.message ?? attachMedia.error?.message ?? removeMedia.error?.message}</p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
 
       {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
+      {deleteAlbum.error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{deleteAlbum.error.message}</p></CardContent></Card> : null}
 
       {isLoading ? <Card><CardContent><p className="font-bold text-muted">Loading albums...</p></CardContent></Card> : null}
 
@@ -247,10 +277,15 @@ export function AlbumsGallery() {
                     <Badge tone="sage">{album.category}</Badge>
                     <h3 className="mt-3 text-2xl font-black text-ink">{album.title}</h3>
                   </div>
-                  {!isViewer ? (
-                  <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${album.title}`} onClick={() => startEditAlbum(album)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                  {canManageAlbum(album, user) ? (
+                  <div className="flex gap-2">
+                    <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${album.title}`} onClick={() => startEditAlbum(album)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant="danger" size="icon" aria-label={`Delete ${album.title}`} disabled={deleteAlbum.isPending} onClick={() => void handleDeleteAlbum(album)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                   ) : null}
                 </div>
                 <button className="mt-2 line-clamp-2 text-left font-semibold leading-7 text-muted" onClick={() => setSelectedAlbum(album)}>
@@ -272,17 +307,28 @@ export function AlbumsGallery() {
             <h3 className="text-2xl font-black text-ink">{featuredAlbum.title}</h3>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {media.map((item, index) => (
-                <button key={item.id} className="group overflow-hidden rounded-lg bg-surface-soft text-left" onClick={() => setSelectedMediaIndex(index)}>
-                  <div className="aspect-square overflow-hidden">
-                    {item.mediaType === "IMAGE" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.url} alt={item.caption ?? "Album media"} className="h-full w-full object-cover transition group-hover:scale-105" />
-                    ) : (
-                      <div className="grid h-full w-full place-items-center bg-wood/10"><Play className="h-10 w-10 text-wood" /></div>
-                    )}
+                <div key={item.id} className="group overflow-hidden rounded-lg bg-surface-soft text-left">
+                  <button className="w-full text-left" onClick={() => setSelectedMediaIndex(index)}>
+                    <div className="aspect-square overflow-hidden">
+                      {item.mediaType === "IMAGE" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.url} alt={item.caption ?? "Album media"} className="h-full w-full object-cover transition group-hover:scale-105" />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center bg-wood/10"><Play className="h-10 w-10 text-wood" /></div>
+                      )}
+                    </div>
+                  </button>
+                  <div className="flex items-center justify-between gap-2 p-3">
+                    <button className="min-w-0 flex-1 text-left font-bold text-muted" onClick={() => setSelectedMediaIndex(index)}>
+                      {item.caption ?? "Family memory"}
+                    </button>
+                    {canManageFeaturedAlbum ? (
+                      <Button type="button" variant="danger" size="icon" aria-label="Remove media" disabled={removeMedia.isPending} onClick={() => void handleRemoveMedia(item.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
                   </div>
-                  <p className="p-3 font-bold text-muted">{item.caption ?? "Family memory"}</p>
-                </button>
+                </div>
               ))}
               {!media.length ? <p className="font-semibold text-muted">Select an album with media to preview the gallery.</p> : null}
             </div>
@@ -331,4 +377,8 @@ function albumPayload(form: { title: string; description: string; category: Albu
     description: form.description.trim() || null,
     category: form.category
   };
+}
+
+function canManageAlbum(album: Album, user?: CurrentUser) {
+  return user?.role === "ADMIN" || (user?.role === "MEMBER" && Boolean(user.id) && album.createdById === user.id);
 }

@@ -4,6 +4,7 @@ import com.familyhub.digital_family_hub.media.MediaAsset;
 import com.familyhub.digital_family_hub.media.MediaAssetRepository;
 import com.familyhub.digital_family_hub.users.AppUser;
 import com.familyhub.digital_family_hub.users.AppUserRepository;
+import com.familyhub.digital_family_hub.users.UserRole;
 import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
@@ -49,11 +50,19 @@ public class AlbumService {
     }
 
     @Transactional
-    public AlbumDTO.Response updateAlbum(UUID albumId, AlbumDTO.Request request) {
-        Album album = albums.findById(albumId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Album not found"));
+    public AlbumDTO.Response updateAlbum(UUID albumId, AlbumDTO.Request request, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
+        Album album = findAlbumForMutation(albumId, currentUser);
         applyAlbumRequest(album, request);
         return AlbumDTO.Response.from(albums.save(album));
+    }
+
+    @Transactional
+    public void deleteAlbum(UUID albumId, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
+        Album album = findAlbumForMutation(albumId, currentUser);
+        mediaAssets.deleteAll(mediaAssets.findByAlbumIdOrderByCapturedAtDesc(albumId));
+        albums.delete(album);
     }
 
     @Transactional(readOnly = true)
@@ -66,8 +75,7 @@ public class AlbumService {
     @Transactional
     public AlbumDTO.MediaResponse attachMedia(UUID albumId, AlbumDTO.AttachMediaRequest request, Principal principal) {
         AppUser currentUser = resolveCurrentUser(principal);
-        Album album = albums.findById(albumId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Album not found"));
+        Album album = findAlbumForMutation(albumId, currentUser);
         MediaAsset asset = new MediaAsset();
         asset.setAlbum(album);
         asset.setUploadedBy(currentUser);
@@ -77,6 +85,18 @@ public class AlbumService {
         asset.setCapturedAt(request.capturedAt());
         asset.setStoragePublicId(request.storagePublicId());
         return AlbumDTO.MediaResponse.from(mediaAssets.save(asset));
+    }
+
+    @Transactional
+    public void removeMedia(UUID albumId, UUID mediaId, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
+        findAlbumForMutation(albumId, currentUser);
+        MediaAsset asset = mediaAssets.findById(mediaId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found"));
+        if (asset.getAlbum() == null || !albumId.equals(asset.getAlbum().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found");
+        }
+        mediaAssets.delete(asset);
     }
 
     private int normalizeSize(int size) {
@@ -95,5 +115,21 @@ public class AlbumService {
         }
         return users.findByEmailIgnoreCase(principal.getName())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user was not found"));
+    }
+
+    private Album findAlbumForMutation(UUID albumId, AppUser currentUser) {
+        Album album = albums.findById(albumId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Album not found"));
+        if (!canMutateAlbum(album, currentUser)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Album not found");
+        }
+        return album;
+    }
+
+    private boolean canMutateAlbum(Album album, AppUser currentUser) {
+        if (currentUser.getRole() == UserRole.ADMIN) {
+            return true;
+        }
+        return album.getCreatedBy() != null && album.getCreatedBy().getId().equals(currentUser.getId());
     }
 }

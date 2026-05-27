@@ -29,10 +29,22 @@ export function updateAlbum(albumId: string, input: UpdateAlbumInput) {
   });
 }
 
+export function deleteAlbum(albumId: string) {
+  return apiFetch<void>(`/api/albums/${albumId}`, {
+    method: "DELETE"
+  });
+}
+
 export function attachAlbumMedia(albumId: string, input: AttachAlbumMediaInput) {
   return apiFetch<AlbumMedia>(`/api/albums/${albumId}/media`, {
     method: "POST",
     body: input
+  });
+}
+
+export function removeAlbumMedia(albumId: string, mediaId: string) {
+  return apiFetch<void>(`/api/albums/${albumId}/media/${mediaId}`, {
+    method: "DELETE"
   });
 }
 

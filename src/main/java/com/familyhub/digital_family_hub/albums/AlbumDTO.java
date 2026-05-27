@@ -20,9 +20,23 @@ public final class AlbumDTO {
     ) {
     }
 
-    public record Response(UUID id, String title, String description, AlbumCategory category) {
+    public record Response(
+        UUID id,
+        UUID createdById,
+        String createdByName,
+        String title,
+        String description,
+        AlbumCategory category
+    ) {
         public static Response from(Album album) {
-            return new Response(album.getId(), album.getTitle(), album.getDescription(), album.getCategory());
+            return new Response(
+                album.getId(),
+                album.getCreatedBy() != null ? album.getCreatedBy().getId() : null,
+                album.getCreatedBy() != null ? album.getCreatedBy().getName() : null,
+                album.getTitle(),
+                album.getDescription(),
+                album.getCategory()
+            );
         }
     }
 
@@ -40,7 +54,9 @@ public final class AlbumDTO {
         String url,
         MediaType mediaType,
         String caption,
-        Instant capturedAt
+        Instant capturedAt,
+        UUID albumId,
+        UUID uploadedById
     ) {
         public static MediaResponse from(MediaAsset asset) {
             return new MediaResponse(
@@ -48,7 +64,9 @@ public final class AlbumDTO {
                 asset.getUrl(),
                 asset.getMediaType(),
                 asset.getCaption(),
-                asset.getCapturedAt()
+                asset.getCapturedAt(),
+                asset.getAlbum() != null ? asset.getAlbum().getId() : null,
+                asset.getUploadedBy() != null ? asset.getUploadedBy().getId() : null
             );
         }
     }

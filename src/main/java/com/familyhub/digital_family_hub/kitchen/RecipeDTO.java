@@ -21,6 +21,8 @@ public final class RecipeDTO {
 
     public record Response(
         UUID id,
+        UUID createdById,
+        String createdByName,
         String title,
         String description,
         String ingredients,
@@ -31,6 +33,8 @@ public final class RecipeDTO {
         public static Response from(Recipe recipe) {
             return new Response(
                 recipe.getId(),
+                recipe.getCreatedBy() != null ? recipe.getCreatedBy().getId() : null,
+                recipe.getCreatedBy() != null ? recipe.getCreatedBy().getName() : null,
                 recipe.getTitle(),
                 recipe.getDescription(),
                 recipe.getIngredients(),

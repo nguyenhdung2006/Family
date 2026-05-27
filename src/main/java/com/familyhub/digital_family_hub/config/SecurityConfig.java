@@ -48,6 +48,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/albums/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
                 .requestMatchers(HttpMethod.POST, "/api/albums/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers(HttpMethod.PUT, "/api/albums/**").hasAnyRole("ADMIN", "MEMBER")
+                .requestMatchers(HttpMethod.DELETE, "/api/albums/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers("/api/media/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers("/api/messages/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers(HttpMethod.GET, "/api/notifications/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
@@ -58,6 +59,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/kitchen/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
                 .requestMatchers(HttpMethod.POST, "/api/kitchen/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers(HttpMethod.PUT, "/api/kitchen/**").hasAnyRole("ADMIN", "MEMBER")
+                .requestMatchers(HttpMethod.DELETE, "/api/kitchen/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers("/api/**").authenticated()
                 // WebSocket role matrix: ADMIN/MEMBER/VIEWER may handshake; STOMP rules below block VIEWER from
                 // message-producing /app/** sends and restricted /topic/rooms/** subscriptions.

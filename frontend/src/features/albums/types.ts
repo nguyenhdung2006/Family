@@ -3,6 +3,8 @@ export type MediaType = "IMAGE" | "VIDEO";
 
 export type Album = {
   id: string;
+  createdById: string | null;
+  createdByName: string | null;
   title: string;
   description: string | null;
   category: AlbumCategory;
@@ -14,6 +16,8 @@ export type AlbumMedia = {
   mediaType: MediaType;
   caption: string | null;
   capturedAt: string | null;
+  albumId: string | null;
+  uploadedById: string | null;
 };
 
 export type MediaUploadResponse = {
