@@ -7,6 +7,11 @@ export type CurrentUser = {
   roles: Array<"ADMIN" | "MEMBER" | "VIEWER">;
 };
 
+export type UpdateProfileInput = {
+  displayName: string;
+  avatarUrl?: string | null;
+};
+
 export type LoginOptions = {
   options: {
     googleOAuthPath: string;

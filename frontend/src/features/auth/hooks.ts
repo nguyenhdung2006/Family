@@ -3,7 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/queryKeys";
-import { getCurrentUser, getLoginOptions, logout } from "@/features/auth/api";
+import { getCurrentUser, getLoginOptions, logout, updateCurrentUserProfile } from "@/features/auth/api";
+import type { CurrentUser } from "@/features/auth/types";
 import { clearAccessToken } from "@/lib/auth/token";
 import { disconnectAllStompClients } from "@/lib/websocket/stomp-client";
 
@@ -32,6 +33,16 @@ export function useLogout() {
       await disconnectAllStompClients();
       queryClient.clear();
       window.location.assign("/login");
+    }
+  });
+}
+
+export function useUpdateCurrentUserProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateCurrentUserProfile,
+    onSuccess: (user: CurrentUser) => {
+      queryClient.setQueryData(queryKeys.authMe, user);
     }
   });
 }
