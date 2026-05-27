@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Background, Controls, MiniMap, ReactFlow, useEdgesState, useNodesState } from "@xyflow/react";
 import { Link2, Pencil, Plus, Search, X } from "lucide-react";
@@ -71,21 +71,24 @@ export function FamilyTreeCanvas() {
   const updateMember = useUpdateFamilyMember(editingMemberId ?? "");
   const updateRelationship = useUpdateFamilyRelationship(editingRelationshipId ?? "");
 
-  const relationshipQueries = useQueries({
-    queries: members.map((member) => ({
+  const relationshipQueryConfigs = useMemo(() => members.map((member) => ({
       queryKey: queryKeys.familyRelationships(member.id),
       queryFn: () => listRelationships(member.id),
       staleTime: 5 * 60_000
-    }))
-  });
+    })), [members]);
 
-  const relationships = useMemo(() => {
+  const combineRelationships = useCallback((results: Array<{ data?: FamilyRelationship[] }>) => {
     const map = new Map<string, FamilyRelationship>();
-    relationshipQueries.forEach((query) => {
+    results.forEach((query) => {
       query.data?.forEach((relationship) => map.set(relationship.id, relationship));
     });
     return Array.from(map.values());
-  }, [relationshipQueries]);
+  }, []);
+
+  const relationships = useQueries({
+    queries: relationshipQueryConfigs,
+    combine: combineRelationships
+  });
 
   const filteredMembers = useMemo(() => {
     const normalized = search.trim().toLowerCase();
