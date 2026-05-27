@@ -2,6 +2,7 @@ package com.familyhub.digital_family_hub.albums;
 
 import com.familyhub.digital_family_hub.media.MediaAsset;
 import com.familyhub.digital_family_hub.media.MediaAssetRepository;
+import com.familyhub.digital_family_hub.media.MediaStorageService;
 import com.familyhub.digital_family_hub.users.AppUser;
 import com.familyhub.digital_family_hub.users.AppUserRepository;
 import com.familyhub.digital_family_hub.users.UserRole;
@@ -21,11 +22,18 @@ public class AlbumService {
     private final AlbumRepository albums;
     private final MediaAssetRepository mediaAssets;
     private final AppUserRepository users;
+    private final MediaStorageService mediaStorageService;
 
-    public AlbumService(AlbumRepository albums, MediaAssetRepository mediaAssets, AppUserRepository users) {
+    public AlbumService(
+        AlbumRepository albums,
+        MediaAssetRepository mediaAssets,
+        AppUserRepository users,
+        MediaStorageService mediaStorageService
+    ) {
         this.albums = albums;
         this.mediaAssets = mediaAssets;
         this.users = users;
+        this.mediaStorageService = mediaStorageService;
     }
 
     @Transactional(readOnly = true)
@@ -61,7 +69,9 @@ public class AlbumService {
     public void deleteAlbum(UUID albumId, Principal principal) {
         AppUser currentUser = resolveCurrentUser(principal);
         Album album = findAlbumForMutation(albumId, currentUser);
-        mediaAssets.deleteAll(mediaAssets.findByAlbumIdOrderByCapturedAtDesc(albumId));
+        List<MediaAsset> albumMedia = mediaAssets.findByAlbumIdOrderByCapturedAtDesc(albumId);
+        albumMedia.forEach(asset -> mediaStorageService.delete(asset.getStoragePublicId()));
+        mediaAssets.deleteAll(albumMedia);
         albums.delete(album);
     }
 
@@ -96,6 +106,7 @@ public class AlbumService {
         if (asset.getAlbum() == null || !albumId.equals(asset.getAlbum().getId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found");
         }
+        mediaStorageService.delete(asset.getStoragePublicId());
         mediaAssets.delete(asset);
     }
 

@@ -38,5 +38,9 @@ hometree:
   storage:
     cloudinary-cloud-name: ${CLOUDINARY_CLOUD_NAME:}
     cloudinary-upload-preset: ${CLOUDINARY_UPLOAD_PRESET:}
+    local-fallback-enabled: ${LOCAL_MEDIA_FALLBACK_ENABLED:true}
+    local-directory: ${LOCAL_MEDIA_DIRECTORY:uploads}
+    local-base-url: ${LOCAL_MEDIA_BASE_URL:http://localhost:8080}
+    local-public-path: ${LOCAL_MEDIA_PUBLIC_PATH:/local-media/}
     max-image-bytes: ${MAX_IMAGE_BYTES:10485760}
     max-video-bytes: ${MAX_VIDEO_BYTES:104857600}

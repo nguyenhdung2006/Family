@@ -7,3 +7,5 @@ spring:
 hometree:
   auth:
     secure-cookies: true
+  storage:
+    local-fallback-enabled: ${LOCAL_MEDIA_FALLBACK_ENABLED:false}

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.familyhub.digital_family_hub.media.MediaAsset;
 import com.familyhub.digital_family_hub.media.MediaAssetRepository;
+import com.familyhub.digital_family_hub.media.MediaStorageService;
 import com.familyhub.digital_family_hub.media.MediaType;
 import com.familyhub.digital_family_hub.users.AppUser;
 import com.familyhub.digital_family_hub.users.AppUserRepository;
@@ -27,7 +28,8 @@ class AlbumServiceTest {
     private final AlbumRepository albums = mock(AlbumRepository.class);
     private final MediaAssetRepository mediaAssets = mock(MediaAssetRepository.class);
     private final AppUserRepository users = mock(AppUserRepository.class);
-    private final AlbumService service = new AlbumService(albums, mediaAssets, users);
+    private final MediaStorageService mediaStorageService = mock(MediaStorageService.class);
+    private final AlbumService service = new AlbumService(albums, mediaAssets, users, mediaStorageService);
 
     @Test
     void updateAlbumAllowsOwner() {
@@ -75,6 +77,7 @@ class AlbumServiceTest {
         service.deleteAlbum(albumId, principal(owner.getEmail()));
 
         verify(mediaAssets).deleteAll(List.of(media));
+        verify(mediaStorageService).delete(media.getStoragePublicId());
         verify(albums).delete(album);
     }
 
@@ -108,6 +111,7 @@ class AlbumServiceTest {
 
         service.removeMedia(albumId, mediaId, principal(admin.getEmail()));
 
+        verify(mediaStorageService).delete(media.getStoragePublicId());
         verify(mediaAssets).delete(media);
     }
 
@@ -160,6 +164,7 @@ class AlbumServiceTest {
         media.setAlbum(album);
         media.setUploadedBy(uploadedBy);
         media.setUrl("https://example.com/photo.jpg");
+        media.setStoragePublicId(id + ".jpg");
         media.setMediaType(MediaType.IMAGE);
         media.setCaption("Photo");
         media.setCapturedAt(Instant.parse("2026-05-28T10:00:00Z"));

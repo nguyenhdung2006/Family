@@ -10,13 +10,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-@Service
 public class CloudinaryMediaStorageService implements MediaStorageService {
 
     private final ObjectMapper objectMapper;
@@ -28,10 +25,10 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
 
     public CloudinaryMediaStorageService(
         ObjectMapper objectMapper,
-        @Value("${hometree.storage.cloudinary-cloud-name}") String cloudName,
-        @Value("${hometree.storage.cloudinary-upload-preset}") String uploadPreset,
-        @Value("${hometree.storage.max-image-bytes}") long maxImageBytes,
-        @Value("${hometree.storage.max-video-bytes}") long maxVideoBytes
+        String cloudName,
+        String uploadPreset,
+        long maxImageBytes,
+        long maxVideoBytes
     ) {
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newHttpClient();
@@ -73,6 +70,11 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
             Thread.currentThread().interrupt();
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Media upload interrupted");
         }
+    }
+
+    @Override
+    public void delete(String storagePublicId) {
+        // Cloudinary deletion policy is intentionally undecided; preserve existing no-delete behavior.
     }
 
     private void validateConfigured() {
