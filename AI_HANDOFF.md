@@ -1,252 +1,501 @@
 # AI Handoff
 
-This file is the first-read runbook for future AI sessions. Keep it short enough to scan, but precise enough to prevent unsafe rewrites.
+Last reviewed: 2026-05-27.
 
-Last reviewed: 2026-05-24.
+This is the first-read runbook for any future AI engineer or developer taking over HomeTree. It is intentionally practical: what the system is, what is real today, where the risky edges are, and how to keep moving without breaking the project.
 
-## Mission
+## PROJECT SUMMARY
 
-HomeTree is a working split full-stack application for a private family hub: family tree, timeline memories, albums/media, messenger, memorial tributes, kitchen recipes, notifications, and profile/current-user shell.
+HomeTree Digital Family Hub is a private family social network with a Spring Boot backend and a Next.js frontend. It is built around a multi-generation family use case: preserving family member profiles, genealogy relationships, memories, albums, chat rooms, memorial tributes, recipes, notifications, and authenticated family access.
 
-Do not modernize or redesign casually. Make small, feature-scoped changes that preserve the current contracts unless the user explicitly asks for an architecture change.
+The target users are family administrators, normal family members, and limited viewers:
 
-## Current Stable Baseline
+| Role | Intended use |
+| --- | --- |
+| `ADMIN` | Maintains family tree records and has full member capabilities. |
+| `MEMBER` | Shares memories, albums, chat messages, recipes, tributes, and notifications. |
+| `VIEWER` | Reads selected family content but should not mutate protected areas or use chat. |
 
-- Backend: Spring Boot 3.5.14, Java 25, Maven, PostgreSQL, Flyway, Spring Security, optional Redis, STOMP/SockJS.
-- Frontend: Next.js App Router, React 19, TypeScript, React Query, Zustand, Tailwind CSS, React Flow, STOMP/SockJS.
-- Auth: Google OAuth profile, custom JWT, HttpOnly `HOMETREE_TOKEN` cookie, bearer-token fallback.
-- Deployment: separate API and web containers behind nginx; PostgreSQL and Redis in Compose.
-- API contract: backend responses use the shared envelope; frontend uses `apiFetch<T>()` to unwrap it.
+Core workflows implemented in some form:
 
-## Current Worktree Awareness
+- Sign in with Google OAuth, receive an HttpOnly `HOMETREE_TOKEN` JWT cookie, and load the app through `GET /api/auth/me`.
+- Browse and maintain family members and relationships.
+- Share memory timeline posts with dates, event types, locations, and tagged family member ids.
+- Create albums, upload media to Cloudinary, and attach uploaded media to albums.
+- Create chat rooms, send messages through REST or STOMP, receive room broadcasts, and mark messages seen.
+- View deceased family members and add/edit memorial tributes.
+- Create and edit family recipes.
+- Create/list/mark-read in-app notifications.
+- Run locally with PostgreSQL and Redis through Docker Compose.
+- Deploy as separate API, web, PostgreSQL, Redis, and nginx services.
 
-As of the latest inspection, these files had local modifications before this document rewrite:
+The product goal is to give a family a private, durable, warm digital home. The current code is a working MVP foundation, but privacy/governance, ownership, pagination, production operations, and end-to-end provider verification are not production-complete.
 
-- `PROJECT_CONTEXT.md`
-- `AI_HANDOFF.md`
-- `nginx/hometree.conf`
-- `src/main/java/com/familyhub/digital_family_hub/config/WebSocketConfig.java`
+## CURRENT STATUS
 
-Treat existing uncommitted changes as user or prior-session work. Do not revert them unless the user explicitly asks.
+### Completed or Working
 
-## Update Policy For Future AI Sessions
+- Backend Spring Boot module structure is coherent and feature-oriented.
+- PostgreSQL schema exists through Flyway migrations `V1` and `V2`.
+- Shared API envelope is implemented through `ApiResponse` and `ApiErrorResponse`.
+- Central exception handling exists in `GlobalExceptionHandler`.
+- Google OAuth profile is isolated in `application-oauth.yaml`.
+- OAuth success handler upserts `AppUser`, issues JWT, writes `HOMETREE_TOKEN`, and redirects to the frontend callback route.
+- JWT API authentication supports cookie-first browser auth and bearer-token fallback.
+- Role-based HTTP policy exists in `SecurityConfig`.
+- Logout exists at both `POST /auth/logout` and `POST /api/auth/logout`.
+- WebSocket/STOMP chat endpoint `/ws` uses SockJS, cookie-first handshake auth, bearer fallback, and blocks `VIEWER` from room topics and `/app/**` sends.
+- Frontend App Router shell, login screen, profile view, navigation, feature routes, typed API clients, React Query hooks, and Zustand UI stores exist.
+- Family tree uses React Flow and editable create/update forms for members and relationships.
+- Timeline, albums/media, messenger, memorials, kitchen, and notifications have usable frontend screens.
+- Dockerfiles exist for API and web; production Compose includes nginx routing.
+- Backend JWT and STOMP tests exist and previously passed.
 
-Update this file after any change that affects how another AI should debug, run, deploy, or safely modify the project.
+### Partially Working
 
-Always update `AI_HANDOFF.md` when changing:
+- OAuth works by design but requires real Google credentials and browser verification. OAuth-created users default to `MEMBER`.
+- Cloudinary upload service is implemented, but real uploads require `CLOUDINARY_CLOUD_NAME` and `CLOUDINARY_UPLOAD_PRESET`.
+- Chat realtime path is implemented and tested at Spring/STOMP level, but still needs real browser and nginx verification.
+- Family graph works for simple trees, but relationship semantics are shallow.
+- Database has future-ready tables for `media_links`, `chat_message_reads`, and `family_member_closure`, but services do not use them.
+- Offset pagination exists in many APIs; cursor-ready indexes exist but cursor APIs are not implemented.
+- Several models contain ownership fields (`author`, `createdBy`, `recipient`, `participants`) that are not consistently populated or enforced.
+- Frontend hides unauthenticated state, but it does not hide mutation UI by role.
+- Production Compose is structurally present but lacks TLS, backups, health checks, observability, and secret management.
 
-- Auth, cookies, roles, `SecurityConfig`, JWT, OAuth redirects, logout/session lifecycle.
-- WebSocket/STOMP/SockJS behavior, nginx `/ws` routing, reconnect/auth assumptions.
-- API response envelope, `apiFetch`, shared DTO conventions, pagination contracts.
-- Database schema migrations, entity relationships, Flyway strategy.
-- Docker, nginx, env vars, build commands, runtime versions.
-- Known bugs, blocked verification, failing tests, or provider setup requirements.
+### Broken, Incomplete, or Risky
 
-Update `PROJECT_CONTEXT.md` when changing architecture, module boundaries, feature ownership, runtime versions, API conventions, deployment topology, or long-lived roadmap assumptions.
+- No admin user management, role management, invitation gate, or onboarding approval flow.
+- No privacy model by branch, family member, album, memorial, or chat room.
+- Notifications are global in practice: list returns all notifications and create does not set a recipient.
+- Chat room participants are modeled but unused for authorization; any `ADMIN`/`MEMBER` can list/read/send to any room.
+- Message read state is global per message (`seenAt`), not per user.
+- Timeline posts, albums, recipes, tributes, notifications, and many media assets do not record the authenticated creator.
+- CSRF is ignored for `/api/**` while cookie auth is used. This is acceptable for early local development but risky for production.
+- `SecurityConfig` ends with `.anyRequest().permitAll()`, so newly added non-API backend routes could become public unless explicitly secured.
+- Frontend production build previously stalled after only printing the Next.js banner in this environment.
+- A local `client_secret_*.json` exists in the workspace and is gitignored. Do not commit it. Rotate any real Google secret that was exposed outside a secret manager.
 
-If the code change is tiny and self-contained, add one line under "Recent Change Notes" only when it affects future debugging.
+## ACTIVE ARCHITECTURE
 
-## Recent Change Notes
+### Backend Architecture
 
-- Logout is implemented: `POST /auth/logout` is the public route, with compatible `POST /api/auth/logout`; both clear `HOMETREE_TOKEN`, invalidate any servlet session, clear `SecurityContext`, and return `200 OK`.
-- Frontend logout clears local bearer fallback state, disconnects tracked STOMP clients, clears React Query cache, and redirects to `/login`.
-- WebSocket auth is cookie-first: the backend reads the `HOMETREE_TOKEN` cookie during handshake, binds a `StompPrincipal`, stores it in session attributes, and falls back to STOMP bearer auth.
-- WebSocket authorization blocks `VIEWER` from subscribing to room topics and sending to `/app/**`.
-- STOMP app sends are supported at `/app/rooms/{roomId}` and delegate to the existing chat send service; REST chat send remains backward compatible.
-- nginx now uses one `/ws` location for direct and SockJS subpaths, with websocket upgrade headers, and proxies `/auth/` to the API for logout.
-- Frontend production build previously stalled after the Next.js banner in this environment. TypeScript and ESLint were reported passing, but `next build` must be verified in a clean Node 22 shell or CI before release.
-- A local `client_secret_*.json` exists and is gitignored. The Google client secret was exposed in chat; rotate it in Google Cloud Console before real use.
+Backend root package: `src/main/java/com/familyhub/digital_family_hub`.
 
-## Verification Status
+| Package | Responsibility |
+| --- | --- |
+| `auth` | OAuth success handling, JWT issue/validation, current user, login options, logout. |
+| `users` | `AppUser`, roles, user repository. |
+| `family` | Family members, branches, relationships, relationship DTOs, family service. |
+| `posts` | Memory timeline posts, event types, tagging family members. |
+| `albums` | Album metadata and attaching media assets to albums. |
+| `media` | Media asset entity and Cloudinary upload abstraction. |
+| `chat` | Chat rooms, messages, REST API, STOMP app send handler, broadcasts. |
+| `memorials` | Deceased-member memorial listing and tributes. |
+| `kitchen` | Family recipe archive. |
+| `notifications` | In-app notification records and read state. |
+| `shared/api` | Response envelope and global exception mapping. |
+| `shared/domain` | `AuditableEntity` id/timestamps base class. |
+| `shared/audit` | Audit log hook for log-based events. |
+| `config` | Security, WebSocket/STOMP, cache configuration. |
+| `system` | Health endpoint. |
 
-VERIFIED:
+Backend pattern:
 
-- Backend compile/test pass.
-- Frontend TypeScript check pass.
-- Frontend lint pass.
-- Spring STOMP integration tests pass for authenticated connect, room subscribe, `/app/**` send, and `VIEWER` rejection.
+```text
+HTTP request
+  -> Controller validates DTO with @Valid
+  -> Service owns transaction and business behavior
+  -> Repository performs JPA persistence
+  -> Service maps entity to response DTO
+  -> Controller wraps with ApiResponse
+```
 
-NOT VERIFIED:
+### Frontend Architecture
 
-- Next.js production build stability.
-- Real browser OAuth login flow.
-- WebSocket runtime in real browser.
-- Reconnect + multi-tab behavior.
-- `nginx -t` locally; nginx is not installed in this Windows shell.
-- CI pipeline.
+Frontend root: `frontend/`.
 
-## Execution Order Plan
+| Folder | Responsibility |
+| --- | --- |
+| `frontend/src/app` | Next.js App Router pages and providers. |
+| `frontend/src/components` | Layout, UI primitives, and feature-specific views. |
+| `frontend/src/features` | Feature API clients, hooks, and TypeScript types. |
+| `frontend/src/lib/api` | `apiFetch`, envelope parsing, query keys, shared API types. |
+| `frontend/src/lib/auth` | Optional local bearer-token fallback storage. |
+| `frontend/src/lib/websocket` | STOMP client and room subscription hook. |
+| `frontend/src/stores` | Zustand stores for UI-only state. |
 
-1. Fix Next.js build stability.
-2. Verify OAuth login in real browser.
-3. Verify WebSocket connection + messaging.
-4. Verify logout from the real browser after OAuth.
-5. Verify nginx `/auth/` and `/ws` routing in the compose environment.
+Frontend data ownership:
 
-## Naming Standardization
+- React Query owns server data.
+- Zustand owns UI state only: sidebar, selected tree member, chat drafts, active room.
+- `apiFetch<T>()` is the standard REST client and expects backend envelope responses.
+- `uploadMedia()` uses XHR instead of `apiFetch` so it can report upload progress.
 
-Mandatory consistency:
+### API Structure
 
-- `HOMETREE_TOKEN` = primary session cookie.
-- `VIEWER` = restricted role.
-- `/ws` = WebSocket endpoint.
+Important endpoint families:
 
-Do not use alternative naming in documentation for these concepts.
+- `GET /api/health`
+- `GET /api/auth/me`
+- `GET /api/auth/login-options`
+- `POST /auth/logout`
+- `POST /api/auth/logout`
+- `/api/family/**`
+- `/api/timeline/posts`
+- `/api/albums/**`
+- `/api/media/upload`
+- `/api/messages/**`
+- `/api/memorials/**`
+- `/api/kitchen/recipes`
+- `/api/notifications/**`
+- WebSocket/STOMP endpoint `/ws`
 
-## First 15 Minutes Checklist
+All normal REST responses should stay in this envelope:
 
-1. Run `git status --short` and inspect relevant diffs before editing.
-2. Read this file, then `PROJECT_CONTEXT.md`, then the feature files you will touch.
-3. If touching backend contracts, inspect matching frontend `features/<name>/api.ts`, `hooks.ts`, and `types.ts`.
-4. If touching frontend API calls, inspect the backend controller/service/DTO first.
-5. If touching auth/WebSocket/media/deployment/migrations, add or update tests/docs unless the change is purely investigative.
-6. Preserve local secrets and generated outputs. Never commit `.env`, credential JSON, `target/`, `frontend/node_modules/`, or `frontend/.next/`.
+```json
+{
+  "success": true,
+  "data": {},
+  "message": "OK",
+  "timestamp": "..."
+}
+```
 
-## Known Bugs, Gaps, And Verification Risks
+Errors use:
 
-High impact:
+```json
+{
+  "success": false,
+  "errorCode": "VALIDATION_ERROR",
+  "message": "...",
+  "errors": [],
+  "timestamp": "...",
+  "path": "/api/..."
+}
+```
 
-- OAuth must be verified locally with `SPRING_PROFILES_ACTIVE=oauth` and rotated Google credentials.
-- WebSocket auth needs browser verification after OAuth in both split localhost mode and same-origin nginx mode.
-- Logout is implemented but still needs real-browser verification after OAuth.
-- User role/admin management is not implemented; OAuth-created users default to `MEMBER`.
-- Production deployment still needs TLS, secret handling, backups, health checks, and observability.
+### Database Structure
 
-Medium impact:
-
-- Cloudinary upload returns `503 Service Unavailable` until `CLOUDINARY_CLOUD_NAME` and `CLOUDINARY_UPLOAD_PRESET` are configured.
-- Cursor pagination indexes exist, but timeline, chat, and notifications still use offset pagination in APIs.
-- Group chat read receipts are not implemented; `chat_message_reads` exists but services still use single-message `seenAt`.
-- Future-ready `media_links` and `family_member_closure` tables are not wired into services.
-- Testcontainers PostgreSQL test is disabled unless Docker is available.
-
-Build/test risk:
-
-- Use Node 22 for frontend work. Node 24 has been observed to hang or behave badly on this project.
-- Re-run `npm run typecheck`, `npm run lint`, and `npm run build` in `frontend/` after meaningful frontend changes.
-- Re-run `.\mvnw.cmd test` after meaningful backend changes.
-
-## Debug Maps
-
-### Auth
-
-Core files:
-
-- `src/main/java/com/familyhub/digital_family_hub/config/SecurityConfig.java`
-- `src/main/java/com/familyhub/digital_family_hub/auth/JwtAuthenticationFilter.java`
-- `src/main/java/com/familyhub/digital_family_hub/auth/JwtService.java`
-- `src/main/java/com/familyhub/digital_family_hub/auth/OAuth2LoginSuccessHandler.java`
-- `src/main/java/com/familyhub/digital_family_hub/auth/AuthController.java`
-- `frontend/src/components/layout/app-shell.tsx`
-- `frontend/src/features/auth/*`
-
-Current flow:
-
-1. Frontend unauthenticated state links to `${NEXT_PUBLIC_API_BASE_URL}/oauth2/authorization/google`.
-2. Spring OAuth runs only when the `oauth` profile is active.
-3. Success handler upserts `AppUser`, audits login, issues JWT, sets HttpOnly `HOMETREE_TOKEN`, then redirects to `/auth/callback`.
-4. Frontend callback invalidates `queryKeys.authMe` and returns home.
-5. Later requests authenticate from cookie or `Authorization: Bearer`.
-6. `GET /api/auth/me` drives the app shell.
-7. `POST /auth/logout` clears `HOMETREE_TOKEN`, invalidates any servlet session, and returns the app to `/login`; `POST /api/auth/logout` is available for API-namespace compatibility.
-
-Common failure points:
-
-- Wrong Google redirect URI or stale client secret.
-- Missing `SPRING_PROFILES_ACTIVE=oauth`.
-- Cookie blocked by SameSite/Secure/domain mismatch.
-- `CORS_ALLOWED_ORIGINS` not matching frontend origin.
-- User exists with unexpected role.
-
-### WebSocket / Chat Realtime
-
-Core files:
-
-- `src/main/java/com/familyhub/digital_family_hub/config/WebSocketConfig.java`
-- `src/main/java/com/familyhub/digital_family_hub/chat/ChatService.java`
-- `frontend/src/lib/websocket/stomp-client.ts`
-- `frontend/src/lib/websocket/use-room-socket.ts`
-- `frontend/src/components/messenger/messenger-view.tsx`
-- `nginx/hometree.conf`
-
-Current flow:
-
-1. Client connects to `/ws` with SockJS/STOMP.
-2. Browser sends `HOMETREE_TOKEN` cookie when cookie policy allows it.
-3. Backend extracts cookie during handshake and binds `StompPrincipal`.
-4. STOMP `CONNECT` can also authenticate from bearer header as fallback.
-5. Client subscribes to `/topic/rooms/{roomId}`.
-6. REST send persists message and broadcasts to that topic; STOMP send can also use `/app/rooms/{roomId}` and delegates to the same chat service.
-
-Common failure points:
-
-- Cookie not sent during SockJS handshake.
-- nginx not proxying exact `/ws` or SockJS subpaths.
-- `allowedOrigins` mismatch.
-- `VIEWER` role attempting messaging.
-- Frontend cache duplicate handling hides expected message.
-
-### Media Upload
-
-Core files:
-
-- `src/main/java/com/familyhub/digital_family_hub/media/CloudinaryMediaStorageService.java`
-- `src/main/java/com/familyhub/digital_family_hub/media/MediaController.java`
-- `frontend/src/components/albums/albums-gallery.tsx`
-- `frontend/src/features/albums/*`
-
-Common failure points:
-
-- Missing Cloudinary env vars.
-- Upload preset not unsigned or not allowed for target file type.
-- File exceeds configured max bytes.
-- Network/provider response hidden behind generic `BAD_GATEWAY`.
-
-### Database / Migrations
-
-Core files:
+Flyway migrations:
 
 - `src/main/resources/db/migration/V1__initial_hometree_schema.sql`
 - `src/main/resources/db/migration/V2__performance_indexes_and_future_ready_schema.sql`
-- JPA entities and repositories under each feature package.
+
+Core tables:
+
+- `app_users`
+- `family_members`
+- `family_relationships`
+- `memory_posts`
+- `memory_post_tagged_members`
+- `albums`
+- `media_assets`
+- `chat_rooms`
+- `chat_room_members`
+- `chat_messages`
+- `in_app_notifications`
+- `recipes`
+- `memorial_tributes`
+
+Future-ready but mostly unused:
+
+- `media_links`
+- `chat_message_reads`
+- `family_member_closure`
 
 Rules:
 
-- Never edit an already-applied migration for a real environment.
+- Do not edit already-applied migrations in a real environment.
 - Add a new `V{next}__description.sql` migration for schema changes.
-- Keep PostgreSQL as source of truth; do not rely on Hibernate schema mutation.
+- Keep `spring.jpa.hibernate.ddl-auto=validate` as the default source-of-truth stance.
 
-## Feature Status Snapshot
+### Deployment Architecture
 
-- Family tree: CRUD for members/relationships is scaffolded; graph UI exists; complex genealogy rules and closure table are not wired.
-- Timeline: list/create and frontend feed/composer exist; cursor pagination, media links, edit/delete need work.
-- Albums/media: albums and upload flow exist; Cloudinary must be configured; `media_links`, delete/reorder/reuse need work.
-- Messenger: rooms/messages REST and STOMP broadcasts exist; group read receipts and participant model need work.
-- Memorials: listings and tributes exist; media/moderation/delete are future work.
-- Kitchen: recipe list/create/update exists; delete/search/filter are straightforward future work.
-- Notifications: list/create/mark-read exists; realtime, mark-all, and cursor pagination are future work.
-- Admin/governance: roles exist, but role management, invitations, approval, and privacy policy are not implemented.
+Local:
 
-## Next Recommended Tasks
+- `compose.yaml` runs PostgreSQL 16 and Redis 7.
+- Backend runs on `localhost:8080`.
+- Frontend runs on `localhost:3000`.
 
-1. Fix Next.js build stability.
-2. Verify OAuth login in real browser.
-3. Verify WebSocket connection + messaging in a real browser.
-4. Verify logout end-to-end after OAuth.
-5. Add admin role management or invitation gating before real family deployment.
-6. Move timeline, chat, and notifications to cursor pagination.
-7. Wire `chat_message_reads` and `media_links` when product behavior requires them.
+Production:
 
-## Dangerous Areas
+- `docker-compose.prod.yaml` defines `api`, `web`, `postgres`, `redis`, and `nginx`.
+- Root `Dockerfile` builds and runs the Spring Boot app on Eclipse Temurin Java 25.
+- `frontend/Dockerfile` builds Next.js standalone output on Node 22.
+- `nginx/hometree.conf` proxies `/` to web and `/api/`, `/auth/`, `/oauth2/`, `/login/oauth2/`, and `/ws` to API.
 
-Do not rewrite these casually:
+## DEVELOPMENT PATTERNS
 
-- `SecurityConfig.java`: route and role policy.
-- `JwtAuthenticationFilter.java`, `JwtService.java`, `OAuth2LoginSuccessHandler.java`: auth/session contract.
-- `WebSocketConfig.java`: cookie-first handshake auth, reconnect-safe principal binding, subscription/send authorization.
-- `src/main/resources/db/migration`: append only.
-- `frontend/src/lib/api/client.ts`: envelope/fetch behavior.
-- `frontend/src/lib/websocket/*`: STOMP/SockJS integration.
-- `docker-compose.prod.yaml` and `nginx/hometree.conf`: production routing.
-- `frontend/package-lock.json`: exact dependency graph.
-- Media storage abstractions: provider behavior is environment-sensitive.
+### Naming Conventions
+
+- Backend package is `com.familyhub.digital_family_hub`.
+- Feature packages use singular domain names where already established: `family`, `posts`, `albums`, `chat`, `media`, `memorials`, `kitchen`, `notifications`.
+- Entity classes are nouns: `FamilyMember`, `MemoryPost`, `Album`, `MediaAsset`, `ChatRoom`.
+- DTO containers end in `DTO` and usually contain `Request` and `Response` records.
+- Repositories extend `JpaRepository<Entity, UUID>`.
+- Frontend feature folders mirror backend feature names.
+- Frontend input types use `CreateXInput` and `UpdateXInput`.
+
+Mandatory canonical names:
+
+- `HOMETREE_TOKEN` for the session cookie.
+- `ADMIN`, `MEMBER`, `VIEWER` for roles.
+- `/ws` for WebSocket/STOMP.
+- `/topic/rooms/{roomId}` for chat room broadcasts.
+- `/app/rooms/{roomId}` for STOMP chat sends.
+
+### Controller Patterns
+
+- Controllers are thin and route-scoped.
+- Controllers return `ApiResponse<T>` for JSON responses.
+- Create endpoints use `@ResponseStatus(HttpStatus.CREATED)`.
+- Request bodies use `@Valid`.
+- Path ids use `UUID`.
+- Pagination parameters default to `page=0` and feature-specific sizes.
+
+### DTO Patterns
+
+- Request DTOs are Java records with Jakarta validation annotations.
+- Response DTOs are Java records with static `from(entity)` mappers.
+- DTOs intentionally avoid exposing full nested JPA entities.
+- Current response DTOs often omit creator/author metadata even when entities have relationships.
+
+### Service Patterns
+
+- Services own `@Transactional` boundaries.
+- Read methods use `@Transactional(readOnly = true)`.
+- Services throw `ResponseStatusException` for expected 404/400/401 cases.
+- Cache annotations are currently used on family member listing and timeline listing only.
+- Audit logging is present in family, timeline, auth, and chat, but not every feature.
+
+### Validation Style
+
+- Bean validation handles required fields and lengths.
+- Services add a few cross-field checks, such as no self-relationship and tribute only for deceased members.
+- Missing today: birth/death chronology, relationship semantic rules, page parameter validation, duplicate relationship friendly errors, URL/content validation beyond media upload.
+
+### Error Handling Style
+
+- `GlobalExceptionHandler` maps validation, `ResponseStatusException`, auth exceptions, and unexpected exceptions.
+- Constraint violations and illegal page parameters can still become generic 500s because there is no dedicated handler for all common invalid request exceptions.
+- WebSocket authorization failures currently throw `IllegalArgumentException`, which STOMP tests assert as transport/session errors.
+
+### Testing Style
+
+- Backend tests use JUnit 5, Spring Boot Test, Spring Security Test, Mockito beans, and Testcontainers dependency.
+- Existing tests cover JWT issue/validation, JWT cookie auth filter, Spring context, and WebSocket/STOMP auth behavior.
+- `PostgresContainerIntegrationTest` is disabled until Docker is available.
+- Frontend has `typecheck`, `lint`, and `build` scripts but no committed component/E2E test suite.
+
+## IMPORTANT BUSINESS RULES
+
+### Authentication and Session Rules
+
+- Google OAuth starts at `/oauth2/authorization/google`.
+- OAuth config is active only with Spring profile `oauth`.
+- OAuth success creates or updates an `AppUser` by email.
+- New OAuth users default to `MEMBER` because `AppUser.role` defaults to `UserRole.MEMBER`.
+- OAuth success issues a custom HS256 JWT and stores it in an HttpOnly `HOMETREE_TOKEN` cookie.
+- API auth reads `Authorization: Bearer` first, then `HOMETREE_TOKEN`.
+- Logout clears `HOMETREE_TOKEN`, invalidates servlet session if present, and clears `SecurityContext`.
+
+### Role and Permission Rules
+
+- Public: `GET /api/health`, `GET /api/auth/login-options`, logout endpoints, OPTIONS.
+- Authenticated: `GET /api/auth/me` and all unmatched `/api/**`.
+- Family reads allow `ADMIN`, `MEMBER`, `VIEWER`.
+- Family mutations require `ADMIN`.
+- Timeline/albums/notifications/memorial/kitchen reads allow `ADMIN`, `MEMBER`, `VIEWER`.
+- Most content mutations allow `ADMIN` and `MEMBER`.
+- Media and messages require `ADMIN` or `MEMBER`.
+- WebSocket handshake allows all roles, but STOMP room subscriptions and `/app/**` sends block `VIEWER`.
+
+### Domain Rules
+
+- A family member is considered deceased when `deathDate` is non-null.
+- Memorial profiles are derived from family members with a death date.
+- Tributes can only be created for deceased members.
+- Family relationship source and target must be different.
+- Relationship types are `PARENT_CHILD`, `SPOUSE`, and `SIBLING`.
+- Chat message body is required even for `IMAGE`/`EMOJI` message types.
+- Media upload only accepts `image/*` and `video/*` content types.
+- Cloudinary must be configured before upload works.
+
+## ENVIRONMENT + INFRASTRUCTURE
+
+### Required Backend Runtime
+
+- Java 25.
+- Maven wrapper from `mvnw` or `mvnw.cmd`.
+- PostgreSQL.
+- Optional Redis.
+
+### Required Frontend Runtime
+
+- Node `>=22 <24`.
+- npm `>=10`.
+- Use Node 22 for this project. Prior notes mention Node 24 caused build instability.
+
+### Backend Environment Variables
+
+| Variable | Purpose | Default or local value |
+| --- | --- | --- |
+| `DB_URL` | JDBC URL | `jdbc:postgresql://localhost:5432/hometree` |
+| `DB_USERNAME` | DB username | `hometree` |
+| `DB_PASSWORD` | DB password | `hometree` |
+| `SERVER_PORT` | API port | `8080` |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated browser origins | `http://localhost:3000` |
+| `SPRING_PROFILES_ACTIVE` | Enables `oauth`, `prod`, etc. | unset locally unless needed |
+| `SPRING_DOCKER_COMPOSE_ENABLED` | Spring Docker Compose integration switch | usually `false` locally |
+| `JWT_SECRET` | HMAC secret for JWT | must be strong in real envs |
+| `JWT_TTL_MINUTES` | JWT lifetime | `120` |
+| `OAUTH_SUCCESS_REDIRECT` | Frontend callback URL | `http://localhost:3000/auth/callback` |
+| `SECURE_COOKIES` | Secure cookie flag | `false` local, `true` prod |
+| `GOOGLE_CLIENT_ID` | Google OAuth client id | required for OAuth profile |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth secret | required for OAuth profile |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name | required for upload |
+| `CLOUDINARY_UPLOAD_PRESET` | Cloudinary upload preset | required for upload |
+| `MAX_IMAGE_BYTES` | Image upload limit | `10485760` |
+| `MAX_VIDEO_BYTES` | Video upload limit | `104857600` |
+| `CACHE_TYPE` | Spring cache type | `simple`; prod profile uses Redis |
+| `REDIS_HOST` | Redis host | `localhost`; prod `redis` |
+| `REDIS_PORT` | Redis port | `6379` |
+
+### Frontend Environment Variables
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_API_BASE_URL` | Backend base URL. Use `http://localhost:8080` locally or empty/same-origin behind nginx. |
+| `NEXT_PUBLIC_WS_URL` | SockJS endpoint. Use `http://localhost:8080/ws` locally or `/ws` behind nginx. |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Display/config metadata for OAuth login screen. |
+
+### Important Commands
+
+```powershell
+docker compose up -d postgres redis
+.\mvnw.cmd spring-boot:run
+.\mvnw.cmd test
+.\mvnw.cmd -DskipTests package
+```
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+npm run typecheck
+npm run lint
+npm run build
+```
+
+## KNOWN ISSUES
+
+### Security and Privacy
+
+- CSRF protection is disabled for `/api/**` while browser auth uses cookies.
+- Homemade JWT implementation lacks issuer/audience claims, key rotation, and library hardening.
+- Default `JWT_SECRET` is development-only and must never be used in production.
+- OAuth-created users default to `MEMBER`; there is no invitation or approval gate.
+- No role management UI/API exists.
+- No account disable/ban/deactivate flow exists.
+- No branch/member/album/chat privacy policy exists.
+- `anyRequest().permitAll()` can accidentally expose future backend routes.
+- Local secret files are present in the workspace but gitignored.
+
+### Business Logic
+
+- Many ownership fields are not populated from the authenticated principal.
+- Notifications ignore recipients and list all notifications.
+- Chat room participants are unused and not enforced.
+- Marking a message seen is not tied to the current user.
+- Timeline filters cannot be combined meaningfully because service precedence is `authorId`, then `year`, then `eventType`.
+- Family relationship semantics are not validated beyond self-reference.
+- Duplicate relationship creation relies on DB constraint failure instead of friendly service handling.
+- No delete endpoints exist for most resources.
+
+### Performance and Scalability
+
+- Timeline, chat, notifications, family, and albums use offset pagination or unpaged list calls.
+- Family tree frontend issues relationship queries for each member, which creates an API storm for large trees.
+- Kitchen and notifications list all rows.
+- Cloudinary upload builds the full multipart body in memory.
+- Simple in-memory cache is default locally; prod switches to Redis but cache coverage is limited.
+
+### UX and Frontend
+
+- Mutation UI is shown to `VIEWER` users and then fails at the API layer.
+- React Query retry predicate checks `error.message.includes("401")`; `ApiError.status` would be more reliable.
+- React Query Devtools are included unconditionally.
+- OAuth, logout, WebSocket, and upload flows need real browser/provider verification.
+- Several screens lack richer empty/error/loading states.
+- Profile page is read-only.
+
+### Testing and Documentation
+
+- Frontend has no unit/component/E2E tests.
+- Backend service/controller coverage is thin outside JWT and WebSocket.
+- Testcontainers PostgreSQL test is disabled.
+- No OpenAPI/Swagger docs exist.
+- Older docs under `docs/HOMETREE_ARCHITECTURE.md` and `docs/FRONTEND_ARCHITECTURE.md` contain stale auth/WebSocket direction; prefer this file and `PROJECT_CONTEXT.md`.
+
+## NEXT DEVELOPMENT PRIORITIES
+
+### Immediate Tasks
+
+1. Rotate/confirm Google OAuth credentials and verify OAuth login in a real browser.
+2. Verify `POST /auth/logout` clears the cookie after OAuth in a real browser.
+3. Verify WebSocket chat connect/subscribe/send through both split localhost and nginx same-origin setups.
+4. Re-run frontend `npm run typecheck`, `npm run lint`, and `npm run build` under Node 22.
+5. Add role-aware frontend guards so `VIEWER` does not see mutation/chat controls.
+6. Fix notification ownership: recipient-aware list/create/read.
+7. Populate creator/author fields from authenticated principal for posts, albums, recipes, tributes, media, and notifications.
+
+### Short-Term Roadmap
+
+1. Add admin user/role management and invitation/onboarding flow.
+2. Add service-level authorization for chat room participants and future private rooms.
+3. Add friendly validation and conflict handling for duplicate family relationships.
+4. Add delete endpoints where product-safe: recipes, tributes, albums, album media, posts, rooms/messages if desired.
+5. Convert timeline, chat, and notifications to cursor pagination using existing V2 indexes.
+6. Add controller/service tests for each feature package.
+7. Add frontend tests for critical auth shell, family tree, timeline, albums upload states, and messenger.
+
+### Long-Term Roadmap
+
+1. Design and implement family governance: invitations, approvals, branch privacy, minor data rules, audit UI.
+2. Wire `media_links` to support reusable media across albums, posts, memorials, family members, and recipes.
+3. Wire `chat_message_reads` for per-user group read receipts.
+4. Wire `family_member_closure` for fast ancestor/descendant queries and large-tree graph operations.
+5. Add notification realtime delivery, badge counts, mark-all-read, and scheduling worker.
+6. Add comments/reactions to timeline posts if that remains part of the social-network vision.
+7. Add observability, backups, health checks, TLS automation, and secret management for production.
+
+## AI ENGINEER NOTES
+
+- Read `PROJECT_CONTEXT.md` after this file before making broad changes.
+- Run `git status --short` before edits. The worktree may contain user or prior-session changes; never revert them without explicit permission.
+- Keep Java 25, Spring Boot, Maven, PostgreSQL, Flyway, Next.js, React Query, Zustand, and the existing REST envelope unless explicitly asked to change architecture.
+- Do not collapse backend and frontend into one runtime.
+- Do not bypass `apiFetch<T>()` for JSON API calls unless changing the client contract intentionally.
+- Do not edit old migrations for real deployments; append a new migration.
+- Avoid casual rewrites of `SecurityConfig`, `JwtAuthenticationFilter`, `JwtService`, `OAuth2LoginSuccessHandler`, `WebSocketConfig`, `frontend/src/lib/api/client.ts`, and `frontend/src/lib/websocket/*`.
+- When touching backend contracts, inspect the matching frontend feature API/hook/type files first.
+- When touching frontend API clients, inspect the backend controller/service/DTO first.
+- If adding a feature, populate authenticated ownership fields at the service layer from `Principal`.
+- If adding mutation APIs, define role policy in `SecurityConfig` and consider CSRF implications.
+- If adding chat behavior, decide whether room membership is enforced and write tests for it.
+- If adding media behavior, decide whether to use legacy direct columns on `media_assets` or move toward `media_links`.
+- If fixing WebSocket, test cookie-first OAuth flow and bearer fallback separately.
+- If running frontend build, use Node 22 and capture logs because this project has had build-stall reports.
+- Do not commit `.env`, credential JSON, `target/`, `frontend/node_modules/`, `frontend/.next/`, logs, or `tsconfig.tsbuildinfo`.
+
+## FIRST 15 MINUTES CHECKLIST
+
+1. Run `git status --short`.
+2. Read `AI_HANDOFF.md`, then `PROJECT_CONTEXT.md`.
+3. Read the controller, service, DTO, repository, and frontend feature files for the area being changed.
+4. Check `SecurityConfig` before adding or moving endpoints.
+5. Check migrations before changing entities.
+6. Check frontend hooks and query keys before changing response shapes.
+7. Run focused tests first, then broader verification if the change crosses module boundaries.
+
