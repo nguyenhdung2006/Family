@@ -2,12 +2,14 @@ package com.familyhub.digital_family_hub.config;
 
 import com.familyhub.digital_family_hub.auth.JwtAuthenticationFilter;
 import com.familyhub.digital_family_hub.auth.JwtService;
+import com.familyhub.digital_family_hub.chat.ChatRoomRepository;
 import jakarta.servlet.http.Cookie;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.server.ServletServerHttpRequest;
@@ -37,13 +39,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final String allowedOrigins;
     private final JwtService jwtService;
+    private final ChatRoomRepository rooms;
 
     public WebSocketConfig(
         @Value("${hometree.cors.allowed-origins}") String allowedOrigins,
-        JwtService jwtService
+        JwtService jwtService,
+        ChatRoomRepository rooms
     ) {
         this.allowedOrigins = allowedOrigins;
         this.jwtService = jwtService;
+        this.rooms = rooms;
     }
 
     @Override
@@ -64,15 +69,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(org.springframework.messaging.simp.config.ChannelRegistration registration) {
-        registration.interceptors(new JwtStompChannelInterceptor(jwtService));
+        registration.interceptors(new JwtStompChannelInterceptor(jwtService, rooms));
     }
 
     private static final class JwtStompChannelInterceptor implements ChannelInterceptor {
 
         private final JwtService jwtService;
+        private final ChatRoomRepository rooms;
 
-        private JwtStompChannelInterceptor(JwtService jwtService) {
+        private JwtStompChannelInterceptor(JwtService jwtService, ChatRoomRepository rooms) {
             this.jwtService = jwtService;
+            this.rooms = rooms;
         }
 
         @Override
@@ -141,6 +148,21 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 if (!hasMessagingAccess(user)) {
                     throw new IllegalArgumentException("Not allowed to subscribe to chat rooms");
                 }
+                if (!isRoomParticipant(destination, user)) {
+                    throw new IllegalArgumentException("Not allowed to subscribe to chat rooms");
+                }
+            }
+        }
+
+        private boolean isRoomParticipant(String destination, Principal principal) {
+            if (principal == null) {
+                return false;
+            }
+            String roomIdValue = destination.substring("/topic/rooms/".length());
+            try {
+                return rooms.existsByIdAndParticipantEmailIgnoreCase(UUID.fromString(roomIdValue), principal.getName());
+            } catch (IllegalArgumentException exception) {
+                return false;
             }
         }
 

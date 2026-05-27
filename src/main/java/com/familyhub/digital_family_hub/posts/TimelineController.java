@@ -2,11 +2,16 @@ package com.familyhub.digital_family_hub.posts;
 
 import com.familyhub.digital_family_hub.shared.api.ApiResponse;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,7 +41,22 @@ public class TimelineController {
 
     @PostMapping("/posts")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<PostDTO.Response> createPost(@Valid @RequestBody PostDTO.Request request) {
-        return ApiResponse.created(timelineService.createPost(request));
+    public ApiResponse<PostDTO.Response> createPost(@Valid @RequestBody PostDTO.Request request, Principal principal) {
+        return ApiResponse.created(timelineService.createPost(request, principal));
+    }
+
+    @PutMapping("/posts/{postId}")
+    public ApiResponse<PostDTO.Response> updatePost(
+        @PathVariable UUID postId,
+        @Valid @RequestBody PostDTO.Request request,
+        Principal principal
+    ) {
+        return ApiResponse.ok(timelineService.updatePost(postId, request, principal));
+    }
+
+    @DeleteMapping("/posts/{postId}")
+    public ResponseEntity<Void> deletePost(@PathVariable UUID postId, Principal principal) {
+        timelineService.deletePost(postId, principal);
+        return ResponseEntity.noContent().build();
     }
 }

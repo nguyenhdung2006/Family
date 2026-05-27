@@ -38,27 +38,32 @@ public class ChatService {
     }
 
     @Transactional(readOnly = true)
-    public List<MessageDTO.RoomResponse> listRooms() {
-        return rooms.findAll().stream().map(MessageDTO.RoomResponse::from).toList();
+    public List<MessageDTO.RoomResponse> listRooms(Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
+        return rooms.findByParticipantsId(currentUser.getId()).stream().map(MessageDTO.RoomResponse::from).toList();
     }
 
     @Transactional
-    public MessageDTO.RoomResponse createRoom(MessageDTO.RoomRequest request) {
+    public MessageDTO.RoomResponse createRoom(MessageDTO.RoomRequest request, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
         ChatRoom room = new ChatRoom();
         applyRoomRequest(room, request);
+        room.getParticipants().add(currentUser);
         return MessageDTO.RoomResponse.from(rooms.save(room));
     }
 
     @Transactional
-    public MessageDTO.RoomResponse updateRoom(UUID roomId, MessageDTO.RoomRequest request) {
-        ChatRoom room = rooms.findById(roomId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat room not found"));
+    public MessageDTO.RoomResponse updateRoom(UUID roomId, MessageDTO.RoomRequest request, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
+        ChatRoom room = findParticipantRoom(roomId, currentUser);
         applyRoomRequest(room, request);
         return MessageDTO.RoomResponse.from(rooms.save(room));
     }
 
     @Transactional(readOnly = true)
-    public List<MessageDTO.Response> listMessages(UUID roomId, int page, int size) {
+    public List<MessageDTO.Response> listMessages(UUID roomId, int page, int size, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
+        findParticipantRoom(roomId, currentUser);
         return messages.findByRoomIdOrderByCreatedAtDesc(roomId, PageRequest.of(page, normalizeSize(size))).stream()
             .map(MessageDTO.Response::from)
             .toList();
@@ -66,12 +71,12 @@ public class ChatService {
 
     @Transactional
     public MessageDTO.Response sendMessage(UUID roomId, MessageDTO.SendRequest request, Principal principal) {
-        ChatRoom room = rooms.findById(roomId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat room not found"));
+        AppUser currentUser = resolveCurrentUser(principal);
+        ChatRoom room = findParticipantRoom(roomId, currentUser);
 
         ChatMessage message = new ChatMessage();
         message.setRoom(room);
-        message.setSender(resolveSender(principal));
+        message.setSender(currentUser);
         message.setType(request.type());
         message.setBody(request.body());
         message.setMediaUrl(request.mediaUrl());
@@ -84,9 +89,11 @@ public class ChatService {
     }
 
     @Transactional
-    public MessageDTO.Response markSeen(UUID messageId) {
+    public MessageDTO.Response markSeen(UUID messageId, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
         ChatMessage message = messages.findById(messageId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat message not found"));
+        requireParticipant(message.getRoom(), currentUser);
         message.setSeenAt(Instant.now());
         return MessageDTO.Response.from(messages.save(message));
     }
@@ -95,12 +102,28 @@ public class ChatService {
         return Math.max(1, Math.min(size, 100));
     }
 
-    private AppUser resolveSender(Principal principal) {
+    private AppUser resolveCurrentUser(Principal principal) {
         if (principal == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
         }
         return users.findByEmailIgnoreCase(principal.getName())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user was not found"));
+    }
+
+    private ChatRoom findParticipantRoom(UUID roomId, AppUser currentUser) {
+        ChatRoom room = rooms.findById(roomId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat room not found"));
+        requireParticipant(room, currentUser);
+        return room;
+    }
+
+    private void requireParticipant(ChatRoom room, AppUser currentUser) {
+        UUID currentUserId = currentUser.getId();
+        boolean participant = room.getParticipants().stream()
+            .anyMatch(user -> currentUserId.equals(user.getId()));
+        if (!participant) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat room not found");
+        }
     }
 
     private void applyRoomRequest(ChatRoom room, MessageDTO.RoomRequest request) {

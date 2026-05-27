@@ -2,6 +2,7 @@ package com.familyhub.digital_family_hub.kitchen;
 
 import com.familyhub.digital_family_hub.shared.api.ApiResponse;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -31,8 +32,8 @@ public class KitchenController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<RecipeDTO.Response> createRecipe(@Valid @RequestBody RecipeDTO.Request request) {
-        return ApiResponse.created(kitchenService.createRecipe(request));
+    public ApiResponse<RecipeDTO.Response> createRecipe(@Valid @RequestBody RecipeDTO.Request request, Principal principal) {
+        return ApiResponse.created(kitchenService.createRecipe(request, principal));
     }
 
     @PutMapping("/{recipeId}")

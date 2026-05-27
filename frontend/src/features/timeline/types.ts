@@ -4,6 +4,8 @@ export type EventType = "FAMILY_GATHERING" | "BIRTHDAY" | "WEDDING" | "TET" | "T
 
 export type MemoryPost = {
   id: string;
+  authorId: string | null;
+  authorName: string | null;
   text: string;
   occurredAt: string;
   locationName: string | null;
@@ -27,3 +29,5 @@ export type CreateMemoryPost = {
   eventType: EventType;
   taggedMemberIds: string[];
 };
+
+export type UpdateMemoryPost = CreateMemoryPost;

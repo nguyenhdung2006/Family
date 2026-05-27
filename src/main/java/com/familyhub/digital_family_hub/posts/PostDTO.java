@@ -27,6 +27,8 @@ public final class PostDTO {
 
     public record Response(
         UUID id,
+        UUID authorId,
+        String authorName,
         String text,
         Instant occurredAt,
         String locationName,
@@ -36,6 +38,8 @@ public final class PostDTO {
         public static Response from(MemoryPost post) {
             return new Response(
                 post.getId(),
+                post.getAuthor() != null ? post.getAuthor().getId() : null,
+                post.getAuthor() != null ? post.getAuthor().getName() : null,
                 post.getText(),
                 post.getOccurredAt(),
                 post.getLocationName(),

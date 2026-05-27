@@ -43,6 +43,8 @@ public class SecurityConfig {
                 // Content areas allow VIEWER reads while preserving write access for ADMIN and MEMBER.
                 .requestMatchers(HttpMethod.GET, "/api/timeline/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
                 .requestMatchers(HttpMethod.POST, "/api/timeline/**").hasAnyRole("ADMIN", "MEMBER")
+                .requestMatchers(HttpMethod.PUT, "/api/timeline/**").hasAnyRole("ADMIN", "MEMBER")
+                .requestMatchers(HttpMethod.DELETE, "/api/timeline/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers(HttpMethod.GET, "/api/albums/**").hasAnyRole("ADMIN", "MEMBER", "VIEWER")
                 .requestMatchers(HttpMethod.POST, "/api/albums/**").hasAnyRole("ADMIN", "MEMBER")
                 .requestMatchers(HttpMethod.PUT, "/api/albums/**").hasAnyRole("ADMIN", "MEMBER")

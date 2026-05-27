@@ -2,6 +2,7 @@ package com.familyhub.digital_family_hub.albums;
 
 import com.familyhub.digital_family_hub.shared.api.ApiResponse;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -37,8 +38,8 @@ public class AlbumController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<AlbumDTO.Response> createAlbum(@Valid @RequestBody AlbumDTO.Request request) {
-        return ApiResponse.created(albumService.createAlbum(request));
+    public ApiResponse<AlbumDTO.Response> createAlbum(@Valid @RequestBody AlbumDTO.Request request, Principal principal) {
+        return ApiResponse.created(albumService.createAlbum(request, principal));
     }
 
     @PutMapping("/{albumId}")
@@ -58,8 +59,9 @@ public class AlbumController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<AlbumDTO.MediaResponse> attachMedia(
         @PathVariable UUID albumId,
-        @Valid @RequestBody AlbumDTO.AttachMediaRequest request
+        @Valid @RequestBody AlbumDTO.AttachMediaRequest request,
+        Principal principal
     ) {
-        return ApiResponse.created(albumService.attachMedia(albumId, request));
+        return ApiResponse.created(albumService.attachMedia(albumId, request, principal));
     }
 }

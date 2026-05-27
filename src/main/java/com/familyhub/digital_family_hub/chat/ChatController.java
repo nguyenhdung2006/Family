@@ -28,31 +28,36 @@ public class ChatController {
     }
 
     @GetMapping("/rooms")
-    public ApiResponse<List<MessageDTO.RoomResponse>> listRooms() {
-        return ApiResponse.ok(chatService.listRooms());
+    public ApiResponse<List<MessageDTO.RoomResponse>> listRooms(Principal principal) {
+        return ApiResponse.ok(chatService.listRooms(principal));
     }
 
     @PostMapping("/rooms")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<MessageDTO.RoomResponse> createRoom(@Valid @RequestBody MessageDTO.RoomRequest request) {
-        return ApiResponse.created(chatService.createRoom(request));
+    public ApiResponse<MessageDTO.RoomResponse> createRoom(
+        @Valid @RequestBody MessageDTO.RoomRequest request,
+        Principal principal
+    ) {
+        return ApiResponse.created(chatService.createRoom(request, principal));
     }
 
     @PutMapping("/rooms/{roomId}")
     public ApiResponse<MessageDTO.RoomResponse> updateRoom(
         @PathVariable UUID roomId,
-        @Valid @RequestBody MessageDTO.RoomRequest request
+        @Valid @RequestBody MessageDTO.RoomRequest request,
+        Principal principal
     ) {
-        return ApiResponse.ok(chatService.updateRoom(roomId, request));
+        return ApiResponse.ok(chatService.updateRoom(roomId, request, principal));
     }
 
     @GetMapping("/rooms/{roomId}")
     public ApiResponse<List<MessageDTO.Response>> listMessages(
         @PathVariable UUID roomId,
         @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "50") int size
+        @RequestParam(defaultValue = "50") int size,
+        Principal principal
     ) {
-        return ApiResponse.ok(chatService.listMessages(roomId, page, size));
+        return ApiResponse.ok(chatService.listMessages(roomId, page, size, principal));
     }
 
     @PostMapping("/rooms/{roomId}")
@@ -66,7 +71,7 @@ public class ChatController {
     }
 
     @PatchMapping("/{messageId}/seen")
-    public ApiResponse<MessageDTO.Response> markSeen(@PathVariable UUID messageId) {
-        return ApiResponse.ok(chatService.markSeen(messageId));
+    public ApiResponse<MessageDTO.Response> markSeen(@PathVariable UUID messageId, Principal principal) {
+        return ApiResponse.ok(chatService.markSeen(messageId, principal));
     }
 }

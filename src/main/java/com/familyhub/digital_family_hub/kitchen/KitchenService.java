@@ -1,5 +1,8 @@
 package com.familyhub.digital_family_hub.kitchen;
 
+import com.familyhub.digital_family_hub.users.AppUser;
+import com.familyhub.digital_family_hub.users.AppUserRepository;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -11,9 +14,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class KitchenService {
 
     private final RecipeRepository recipes;
+    private final AppUserRepository users;
 
-    public KitchenService(RecipeRepository recipes) {
+    public KitchenService(RecipeRepository recipes, AppUserRepository users) {
         this.recipes = recipes;
+        this.users = users;
     }
 
     @Transactional(readOnly = true)
@@ -22,9 +27,11 @@ public class KitchenService {
     }
 
     @Transactional
-    public RecipeDTO.Response createRecipe(RecipeDTO.Request request) {
+    public RecipeDTO.Response createRecipe(RecipeDTO.Request request, Principal principal) {
+        AppUser currentUser = resolveCurrentUser(principal);
         Recipe recipe = new Recipe();
         applyRecipeRequest(recipe, request);
+        recipe.setCreatedBy(currentUser);
         return RecipeDTO.Response.from(recipes.save(recipe));
     }
 
@@ -43,5 +50,13 @@ public class KitchenService {
         recipe.setInstructions(request.instructions());
         recipe.setVideoUrl(request.videoUrl());
         recipe.setNotesFromElders(request.notesFromElders());
+    }
+
+    private AppUser resolveCurrentUser(Principal principal) {
+        if (principal == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+        }
+        return users.findByEmailIgnoreCase(principal.getName())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user was not found"));
     }
 }

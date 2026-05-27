@@ -2,6 +2,9 @@ package com.familyhub.digital_family_hub.memorials;
 
 import com.familyhub.digital_family_hub.family.FamilyMember;
 import com.familyhub.digital_family_hub.family.FamilyMemberRepository;
+import com.familyhub.digital_family_hub.users.AppUser;
+import com.familyhub.digital_family_hub.users.AppUserRepository;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -14,10 +17,12 @@ public class MemorialService {
 
     private final FamilyMemberRepository members;
     private final MemorialTributeRepository tributes;
+    private final AppUserRepository users;
 
-    public MemorialService(FamilyMemberRepository members, MemorialTributeRepository tributes) {
+    public MemorialService(FamilyMemberRepository members, MemorialTributeRepository tributes, AppUserRepository users) {
         this.members = members;
         this.tributes = tributes;
+        this.users = users;
     }
 
     @Transactional(readOnly = true)
@@ -35,7 +40,12 @@ public class MemorialService {
     }
 
     @Transactional
-    public MemorialDTO.TributeResponse createTribute(UUID memberId, MemorialDTO.TributeRequest request) {
+    public MemorialDTO.TributeResponse createTribute(
+        UUID memberId,
+        MemorialDTO.TributeRequest request,
+        Principal principal
+    ) {
+        AppUser currentUser = resolveCurrentUser(principal);
         FamilyMember member = members.findById(memberId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Family member not found"));
         if (!member.isDeceased()) {
@@ -43,6 +53,7 @@ public class MemorialService {
         }
         MemorialTribute tribute = new MemorialTribute();
         tribute.setMember(member);
+        tribute.setAuthor(currentUser);
         applyTributeRequest(tribute, request);
         return MemorialDTO.TributeResponse.from(tributes.save(tribute));
     }
@@ -65,5 +76,13 @@ public class MemorialService {
     private void applyTributeRequest(MemorialTribute tribute, MemorialDTO.TributeRequest request) {
         tribute.setTitle(request.title());
         tribute.setStory(request.story());
+    }
+
+    private AppUser resolveCurrentUser(Principal principal) {
+        if (principal == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");
+        }
+        return users.findByEmailIgnoreCase(principal.getName())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user was not found"));
     }
 }

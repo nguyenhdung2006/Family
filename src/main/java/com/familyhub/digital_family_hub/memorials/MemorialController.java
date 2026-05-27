@@ -2,6 +2,7 @@ package com.familyhub.digital_family_hub.memorials;
 
 import com.familyhub.digital_family_hub.shared.api.ApiResponse;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -38,9 +39,10 @@ public class MemorialController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<MemorialDTO.TributeResponse> createTribute(
         @PathVariable UUID memberId,
-        @Valid @RequestBody MemorialDTO.TributeRequest request
+        @Valid @RequestBody MemorialDTO.TributeRequest request,
+        Principal principal
     ) {
-        return ApiResponse.created(memorialService.createTribute(memberId, request));
+        return ApiResponse.created(memorialService.createTribute(memberId, request, principal));
     }
 
     @PutMapping("/{memberId}/tributes/{tributeId}")

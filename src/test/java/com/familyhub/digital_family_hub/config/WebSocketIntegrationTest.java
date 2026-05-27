@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.familyhub.digital_family_hub.albums.AlbumRepository;
 import com.familyhub.digital_family_hub.auth.JwtAuthenticationFilter;
@@ -155,7 +156,10 @@ class WebSocketIntegrationTest {
     void memberSubscribesToRoomTopic() throws Exception {
         TestSessionHandler handler = new TestSessionHandler();
         StompSession session = connect(UserRole.MEMBER, handler);
-        String destination = "/topic/rooms/" + UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        when(chatRoomRepository.existsByIdAndParticipantEmailIgnoreCase(eq(roomId), eq("member@example.com")))
+            .thenReturn(true);
+        String destination = "/topic/rooms/" + roomId;
         CompletableFuture<Object> message = new CompletableFuture<>();
 
         StompHeaders headers = new StompHeaders();
