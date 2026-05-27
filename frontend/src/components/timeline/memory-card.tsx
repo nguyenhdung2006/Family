@@ -1,13 +1,14 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { Heart, MapPin, MessageCircle, Pencil, Trash2, UsersRound, X } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { Heart, ImagePlus, MapPin, MessageCircle, Pencil, Trash2, UsersRound, X } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUser } from "@/features/auth/hooks";
+import { uploadMedia } from "@/features/albums/api";
 import { useDeleteTimelinePost, useUpdateTimelinePost } from "@/features/timeline/hooks";
 import type { EventType, MemoryPost } from "@/features/timeline/types";
 import { formatFamilyDate } from "@/lib/utils/date";
@@ -20,24 +21,87 @@ export function MemoryCard({ post }: { post: MemoryPost }) {
   const deletePost = useDeleteTimelinePost();
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState(() => postForm(post));
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const canManagePost = user?.role === "ADMIN" || (user?.role === "MEMBER" && Boolean(user.id) && post.authorId === user.id);
-  const isMutating = updatePost.isPending || deletePost.isPending;
+  const isMutating = updatePost.isPending || deletePost.isPending || uploadProgress !== null;
+  const displayMedia = post.media.find((media) => media.mediaType === "IMAGE");
+  const editPreviewUrl = previewUrl ?? form.mediaUrl;
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   function startEdit() {
     setForm(postForm(post));
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setUploadError(null);
     setIsEditing(true);
+  }
+
+  function cancelEdit() {
+    setForm(postForm(post));
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setUploadError(null);
+    setIsEditing(false);
+  }
+
+  function handleFileChange(file?: File) {
+    setUploadError(null);
+    setSelectedFile(file ?? null);
+    setPreviewUrl(file ? URL.createObjectURL(file) : null);
+    if (!file) {
+      setForm((current) => ({ ...current, mediaUrl: null, mediaStoragePublicId: null, mediaType: null }));
+    }
   }
 
   async function submitEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setUploadError(null);
+    let media = {
+      url: form.mediaUrl,
+      storagePublicId: form.mediaStoragePublicId,
+      mediaType: form.mediaType
+    };
+    if (selectedFile) {
+      setUploadProgress(0);
+      try {
+        const uploadedMedia = await uploadMedia(selectedFile, setUploadProgress);
+        if (uploadedMedia.mediaType !== "IMAGE") {
+          setUploadError("Timeline memories support image attachments only.");
+          return;
+        }
+        media = {
+          url: uploadedMedia.url,
+          storagePublicId: uploadedMedia.storagePublicId,
+          mediaType: uploadedMedia.mediaType
+        };
+      } catch (error) {
+        setUploadError(error instanceof Error ? error.message : "Image upload failed.");
+        return;
+      } finally {
+        setUploadProgress(null);
+      }
+    }
     await updatePost.mutateAsync({
       text: form.text.trim(),
       occurredAt: new Date(form.occurredAt).toISOString(),
       locationName: form.locationName.trim() || undefined,
       eventType: form.eventType,
-      taggedMemberIds: post.taggedMemberIds
+      taggedMemberIds: post.taggedMemberIds,
+      mediaUrl: media.url,
+      mediaStoragePublicId: media.storagePublicId,
+      mediaType: media.mediaType
     });
-    setIsEditing(false);
+    cancelEdit();
   }
 
   async function handleDelete() {
@@ -62,7 +126,7 @@ export function MemoryCard({ post }: { post: MemoryPost }) {
           {canManagePost ? (
             <div className="flex gap-2">
               {isEditing ? (
-                <Button type="button" variant="ghost" size="icon" aria-label="Cancel memory edit" onClick={() => setIsEditing(false)}>
+                <Button type="button" variant="ghost" size="icon" aria-label="Cancel memory edit" onClick={cancelEdit}>
                   <X className="h-4 w-4" />
                 </Button>
               ) : (
@@ -106,16 +170,47 @@ export function MemoryCard({ post }: { post: MemoryPost }) {
                 ))}
               </select>
             </div>
-            {updatePost.error ? <p className="font-bold text-[#C15A4A]">{updatePost.error.message}</p> : null}
+            <div className="grid gap-3 rounded-lg border border-dashed border-border-warm bg-surface-soft/50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-black text-ink">Memory photo</p>
+                  <p className="text-sm font-semibold text-muted">Replace or remove the optional archive image.</p>
+                </div>
+                <label className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border-warm bg-white px-4 text-base font-bold text-ink transition hover:bg-surface-soft">
+                  <ImagePlus className="h-5 w-5" />
+                  Choose image
+                  <input type="file" accept="image/*" className="sr-only" onChange={(event) => handleFileChange(event.target.files?.[0])} />
+                </label>
+              </div>
+              {editPreviewUrl ? (
+                <div className="relative overflow-hidden rounded-lg border border-border-warm bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={editPreviewUrl} alt="Memory attachment preview" className="max-h-72 w-full object-cover" />
+                  <Button type="button" variant="secondary" size="icon" className="absolute right-2 top-2 bg-white" aria-label="Remove memory image" onClick={() => handleFileChange()}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
+              {uploadProgress !== null ? <p className="font-bold text-muted">Uploading image... {uploadProgress}%</p> : null}
+            </div>
+            {uploadError || updatePost.error ? <p className="font-bold text-[#C15A4A]">{uploadError ?? updatePost.error?.message}</p> : null}
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+              <Button type="button" variant="ghost" onClick={cancelEdit}>Cancel</Button>
               <Button type="submit" disabled={isMutating}>
                 <Pencil className="h-5 w-5" /> {updatePost.isPending ? "Saving..." : "Save memory"}
               </Button>
             </div>
           </form>
         ) : (
-          <p className="mt-4 whitespace-pre-wrap text-lg font-semibold leading-8 text-ink">{post.text}</p>
+          <>
+            <p className="mt-4 whitespace-pre-wrap text-lg font-semibold leading-8 text-ink">{post.text}</p>
+            {displayMedia ? (
+              <div className="mt-4 overflow-hidden rounded-lg border border-border-warm bg-surface-soft">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={displayMedia.url} alt="Family memory attachment" className="max-h-[28rem] w-full object-cover" />
+              </div>
+            ) : null}
+          </>
         )}
         {!isEditing && deletePost.error ? <p className="mt-3 font-bold text-[#C15A4A]">{deletePost.error.message}</p> : null}
 
@@ -138,11 +233,15 @@ export function MemoryCard({ post }: { post: MemoryPost }) {
 }
 
 function postForm(post: MemoryPost) {
+  const image = post.media.find((media) => media.mediaType === "IMAGE");
   return {
     text: post.text,
     occurredAt: toDateTimeLocalValue(post.occurredAt),
     locationName: post.locationName ?? "",
-    eventType: post.eventType
+    eventType: post.eventType,
+    mediaUrl: image?.url ?? null,
+    mediaStoragePublicId: image?.storagePublicId ?? null,
+    mediaType: image?.mediaType ?? null
   };
 }
 

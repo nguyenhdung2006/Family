@@ -9,6 +9,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.familyhub.digital_family_hub.family.FamilyMemberRepository;
+import com.familyhub.digital_family_hub.media.MediaAsset;
+import com.familyhub.digital_family_hub.media.MediaAssetRepository;
+import com.familyhub.digital_family_hub.media.MediaStorageService;
+import com.familyhub.digital_family_hub.media.MediaType;
 import com.familyhub.digital_family_hub.shared.audit.AuditLogService;
 import com.familyhub.digital_family_hub.users.AppUser;
 import com.familyhub.digital_family_hub.users.AppUserRepository;
@@ -25,9 +29,11 @@ class TimelineServiceTest {
 
     private final MemoryPostRepository posts = mock(MemoryPostRepository.class);
     private final FamilyMemberRepository members = mock(FamilyMemberRepository.class);
+    private final MediaAssetRepository mediaAssets = mock(MediaAssetRepository.class);
+    private final MediaStorageService mediaStorageService = mock(MediaStorageService.class);
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final AuditLogService auditLogService = mock(AuditLogService.class);
-    private final TimelineService service = new TimelineService(posts, members, users, auditLogService);
+    private final TimelineService service = new TimelineService(posts, members, mediaAssets, mediaStorageService, users, auditLogService);
 
     @Test
     void updatePostAllowsAuthor() {
@@ -37,6 +43,7 @@ class TimelineServiceTest {
         when(users.findByEmailIgnoreCase(author.getEmail())).thenReturn(Optional.of(author));
         when(posts.findById(postId)).thenReturn(Optional.of(post));
         when(posts.save(any(MemoryPost.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(mediaAssets.findByPostIdOrderByCapturedAtDesc(postId)).thenReturn(List.of());
 
         PostDTO.Response response = service.updatePost(postId, request("Updated memory"), principal(author.getEmail()));
 
@@ -44,6 +51,52 @@ class TimelineServiceTest {
         assertThat(response.authorId()).isEqualTo(author.getId());
         assertThat(response.text()).isEqualTo("Updated memory");
         verify(posts).save(post);
+    }
+
+    @Test
+    void updatePostAttachesImageMedia() {
+        AppUser author = user(UUID.randomUUID(), "member@example.com", UserRole.MEMBER);
+        UUID postId = UUID.randomUUID();
+        MemoryPost post = post(postId, author);
+        when(users.findByEmailIgnoreCase(author.getEmail())).thenReturn(Optional.of(author));
+        when(posts.findById(postId)).thenReturn(Optional.of(post));
+        when(posts.save(any(MemoryPost.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(mediaAssets.findByPostIdOrderByCapturedAtDesc(postId))
+            .thenReturn(List.of())
+            .thenReturn(List.of(media(post, "https://example.com/memory.jpg", "timeline/memory.jpg")));
+        when(mediaAssets.save(any(MediaAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PostDTO.Response response = service.updatePost(
+            postId,
+            requestWithMedia("Updated memory", "https://example.com/memory.jpg", "timeline/memory.jpg", MediaType.IMAGE),
+            principal(author.getEmail())
+        );
+
+        assertThat(response.media()).hasSize(1);
+        assertThat(response.media().getFirst().url()).isEqualTo("https://example.com/memory.jpg");
+        verify(mediaAssets).save(any(MediaAsset.class));
+    }
+
+    @Test
+    void updatePostRejectsVideoMedia() {
+        AppUser author = user(UUID.randomUUID(), "member@example.com", UserRole.MEMBER);
+        UUID postId = UUID.randomUUID();
+        MemoryPost post = post(postId, author);
+        when(users.findByEmailIgnoreCase(author.getEmail())).thenReturn(Optional.of(author));
+        when(posts.findById(postId)).thenReturn(Optional.of(post));
+        when(posts.save(any(MemoryPost.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(mediaAssets.findByPostIdOrderByCapturedAtDesc(postId)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.updatePost(
+            postId,
+            requestWithMedia("Updated memory", "https://example.com/video.mp4", "timeline/video.mp4", MediaType.VIDEO),
+            principal(author.getEmail())
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .satisfies(exception ->
+                assertThat(((ResponseStatusException) exception).getStatusCode().value()).isEqualTo(400)
+            );
+        verify(mediaAssets, never()).save(any());
     }
 
     @Test
@@ -69,6 +122,7 @@ class TimelineServiceTest {
         MemoryPost post = post(postId, author);
         when(users.findByEmailIgnoreCase(author.getEmail())).thenReturn(Optional.of(author));
         when(posts.findById(postId)).thenReturn(Optional.of(post));
+        when(mediaAssets.findByPostIdOrderByCapturedAtDesc(postId)).thenReturn(List.of());
 
         service.deletePost(postId, principal(author.getEmail()));
 
@@ -83,6 +137,7 @@ class TimelineServiceTest {
         MemoryPost post = post(postId, author);
         when(users.findByEmailIgnoreCase(admin.getEmail())).thenReturn(Optional.of(admin));
         when(posts.findById(postId)).thenReturn(Optional.of(post));
+        when(mediaAssets.findByPostIdOrderByCapturedAtDesc(postId)).thenReturn(List.of());
 
         service.deletePost(postId, principal(admin.getEmail()));
 
@@ -134,7 +189,33 @@ class TimelineServiceTest {
             Instant.parse("2026-05-28T10:00:00Z"),
             "Home",
             EventType.FAMILY_GATHERING,
-            List.of()
+            List.of(),
+            null,
+            null,
+            null
         );
+    }
+
+    private PostDTO.Request requestWithMedia(String text, String mediaUrl, String mediaStoragePublicId, MediaType mediaType) {
+        return new PostDTO.Request(
+            text,
+            Instant.parse("2026-05-28T10:00:00Z"),
+            "Home",
+            EventType.FAMILY_GATHERING,
+            List.of(),
+            mediaUrl,
+            mediaStoragePublicId,
+            mediaType
+        );
+    }
+
+    private MediaAsset media(MemoryPost post, String url, String storagePublicId) {
+        MediaAsset mediaAsset = new MediaAsset();
+        mediaAsset.setId(UUID.randomUUID());
+        mediaAsset.setPost(post);
+        mediaAsset.setUrl(url);
+        mediaAsset.setStoragePublicId(storagePublicId);
+        mediaAsset.setMediaType(MediaType.IMAGE);
+        return mediaAsset;
     }
 }

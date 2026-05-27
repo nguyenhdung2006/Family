@@ -11,6 +11,14 @@ export type MemoryPost = {
   locationName: string | null;
   eventType: EventType;
   taggedMemberIds: string[];
+  media: TimelineMedia[];
+};
+
+export type TimelineMedia = {
+  id: string;
+  url: string;
+  storagePublicId: string | null;
+  mediaType: "IMAGE" | "VIDEO";
 };
 
 export type TimelineFilters = {
@@ -28,6 +36,9 @@ export type CreateMemoryPost = {
   locationName?: string;
   eventType: EventType;
   taggedMemberIds: string[];
+  mediaUrl?: string | null;
+  mediaStoragePublicId?: string | null;
+  mediaType?: "IMAGE" | "VIDEO" | null;
 };
 
 export type UpdateMemoryPost = CreateMemoryPost;
