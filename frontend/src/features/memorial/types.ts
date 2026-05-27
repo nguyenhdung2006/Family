@@ -7,6 +7,8 @@ export type MemorialMember = {
 export type Tribute = {
   id: string;
   memberId: string;
+  authorId: string | null;
+  authorName: string | null;
   title: string;
   story: string;
 };

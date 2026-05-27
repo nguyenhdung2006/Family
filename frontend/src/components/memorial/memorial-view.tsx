@@ -1,14 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Flame, Heart, Pencil, Plus, X } from "lucide-react";
+import { Flame, Heart, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormError, FormHint } from "@/components/forms/form-status";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUser } from "@/features/auth/hooks";
-import { useCreateTribute, useMemorialMembers, useTributes, useUpdateTribute } from "@/features/memorial/hooks";
+import type { CurrentUser } from "@/features/auth/types";
+import { useCreateTribute, useDeleteTribute, useMemorialMembers, useTributes, useUpdateTribute } from "@/features/memorial/hooks";
 import type { Tribute } from "@/features/memorial/types";
 
 export function MemorialView() {
@@ -23,6 +24,7 @@ export function MemorialView() {
   const editingTribute = tributes.find((tribute) => tribute.id === editingTributeId);
   const createTribute = useCreateTribute(activeMember?.id ?? "");
   const updateTribute = useUpdateTribute(activeMember?.id ?? "", editingTributeId ?? "");
+  const deleteTribute = useDeleteTribute(activeMember?.id ?? "");
   const isViewer = user?.role === "VIEWER";
 
   async function submitTribute(event: FormEvent<HTMLFormElement>) {
@@ -43,6 +45,9 @@ export function MemorialView() {
   }
 
   function startEditTribute(tribute: Tribute) {
+    if (!canManageTribute(tribute, user)) {
+      return;
+    }
     setEditingTributeId(tribute.id);
     setTributeValidation(null);
     setTributeForm({ title: tribute.title, story: tribute.story });
@@ -52,6 +57,16 @@ export function MemorialView() {
     setEditingTributeId(null);
     setTributeValidation(null);
     setTributeForm({ title: "", story: "" });
+  }
+
+  async function handleDeleteTribute(tribute: Tribute) {
+    if (!canManageTribute(tribute, user) || !window.confirm(`Delete ${tribute.title}?`)) {
+      return;
+    }
+    await deleteTribute.mutateAsync(tribute.id);
+    if (editingTributeId === tribute.id) {
+      cancelEditTribute();
+    }
   }
 
   return (
@@ -121,15 +136,21 @@ export function MemorialView() {
             </Card>
           ) : null}
           {tributesError ? <Card className="md:col-span-2"><CardContent><p className="font-bold text-[#C15A4A]">{tributesError.message}</p></CardContent></Card> : null}
+          {deleteTribute.error ? <Card className="md:col-span-2"><CardContent><p className="font-bold text-[#C15A4A]">{deleteTribute.error.message}</p></CardContent></Card> : null}
           {tributes.map((tribute) => (
             <Card key={tribute.id}>
               <CardContent>
                 <div className="flex items-start justify-between gap-3">
                   <Heart className="h-6 w-6 text-wood" />
-                  {!isViewer ? (
-                  <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${tribute.title}`} onClick={() => startEditTribute(tribute)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                  {canManageTribute(tribute, user) ? (
+                  <div className="flex gap-2">
+                    <Button type="button" variant="secondary" size="icon" aria-label={`Edit ${tribute.title}`} onClick={() => startEditTribute(tribute)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant="danger" size="icon" aria-label={`Delete ${tribute.title}`} disabled={deleteTribute.isPending} onClick={() => void handleDeleteTribute(tribute)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                   ) : null}
                 </div>
                 <h3 className="mt-3 text-2xl font-black text-ink">{tribute.title}</h3>
@@ -154,4 +175,8 @@ function tributePayload(form: { title: string; story: string }) {
     title: form.title.trim(),
     story: form.story.trim()
   };
+}
+
+function canManageTribute(tribute: Tribute, user?: CurrentUser) {
+  return user?.role === "ADMIN" || (user?.role === "MEMBER" && Boolean(user.id) && tribute.authorId === user.id);
 }

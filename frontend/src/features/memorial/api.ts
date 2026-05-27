@@ -22,3 +22,9 @@ export function updateTribute(memberId: string, tributeId: string, input: Update
     body: input
   });
 }
+
+export function deleteTribute(memberId: string, tributeId: string) {
+  return apiFetch<void>(`/api/memorials/${memberId}/tributes/${tributeId}`, {
+    method: "DELETE"
+  });
+}

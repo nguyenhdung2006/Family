@@ -19,11 +19,20 @@ public final class MemorialDTO {
         }
     }
 
-    public record TributeResponse(UUID id, UUID memberId, String title, String story) {
+    public record TributeResponse(
+        UUID id,
+        UUID memberId,
+        UUID authorId,
+        String authorName,
+        String title,
+        String story
+    ) {
         public static TributeResponse from(MemorialTribute tribute) {
             return new TributeResponse(
                 tribute.getId(),
                 tribute.getMember().getId(),
+                tribute.getAuthor() != null ? tribute.getAuthor().getId() : null,
+                tribute.getAuthor() != null ? tribute.getAuthor().getName() : null,
                 tribute.getTitle(),
                 tribute.getStory()
             );
