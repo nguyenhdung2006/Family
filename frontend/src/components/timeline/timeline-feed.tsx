@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Filter } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { MemoryCard } from "@/components/timeline/memory-card";
@@ -20,8 +21,9 @@ export function TimelineFeed() {
     [eventType, year]
   );
   const { data: user } = useCurrentUser();
-  const { data: posts = [], isLoading } = useTimelinePosts(filters);
+  const { data: posts = [], isLoading, error, refetch } = useTimelinePosts(filters);
   const isViewer = user?.role === "VIEWER";
+  const hasFilters = Boolean(year || eventType);
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -29,10 +31,24 @@ export function TimelineFeed() {
         {!isViewer ? <MemoryComposer /> : null}
         {isLoading ? (
           <Card><CardContent><p className="font-bold text-muted">Loading memories...</p></CardContent></Card>
+        ) : error ? (
+          <Card>
+            <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-bold text-[#C15A4A]">We could not load memories. {error.message}</p>
+              <Button variant="secondary" onClick={() => void refetch()}>Try again</Button>
+            </CardContent>
+          </Card>
         ) : posts.length ? (
           posts.map((post) => <MemoryCard key={post.id} post={post} />)
         ) : (
-          <Card><CardContent><p className="text-lg font-bold text-muted">No memories match these filters yet.</p></CardContent></Card>
+          <Card>
+            <CardContent>
+              <p className="text-lg font-black text-ink">{hasFilters ? "No memories match these filters yet." : "No memories yet."}</p>
+              <p className="mt-2 font-semibold text-muted">
+                {isViewer ? "Shared family memories will appear here when members add them." : "Share the first family memory from the composer above."}
+              </p>
+            </CardContent>
+          </Card>
         )}
       </div>
       <aside className="lg:sticky lg:top-24 lg:self-start">

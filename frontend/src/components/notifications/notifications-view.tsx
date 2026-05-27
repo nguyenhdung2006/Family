@@ -14,7 +14,7 @@ import { formatFamilyDate } from "@/lib/utils/date";
 
 export function NotificationsView() {
   const { data: user } = useCurrentUser();
-  const { data: notifications = [], isLoading, error } = useNotifications();
+  const { data: notifications = [], isLoading, error, refetch } = useNotifications();
   const markRead = useMarkNotificationRead();
   const createNotification = useCreateNotification();
   const deleteNotification = useDeleteNotification();
@@ -113,7 +113,14 @@ export function NotificationsView() {
       ) : null}
 
       {isLoading ? <Card><CardContent><p className="text-lg font-bold text-muted">Loading notifications...</p></CardContent></Card> : null}
-      {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
+      {error ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-bold text-[#C15A4A]">We could not load notifications. {error.message}</p>
+            <Button variant="secondary" onClick={() => void refetch()}>Try again</Button>
+          </CardContent>
+        </Card>
+      ) : null}
       {deleteNotification.error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{deleteNotification.error.message}</p></CardContent></Card> : null}
 
       {notifications.map((notification) => (
@@ -152,8 +159,15 @@ export function NotificationsView() {
           </CardContent>
         </Card>
       ))}
-      {!notifications.length ? (
-        <Card><CardContent><p className="text-lg font-bold text-muted">No notifications yet.</p></CardContent></Card>
+      {!notifications.length && !isLoading && !error ? (
+        <Card>
+          <CardContent>
+            <p className="text-lg font-black text-ink">No notifications yet.</p>
+            <p className="mt-2 font-semibold text-muted">
+              {isViewer ? "Family alerts and reminders will appear here." : "Create the first family alert from the form above."}
+            </p>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   );

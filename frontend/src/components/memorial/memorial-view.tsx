@@ -20,7 +20,7 @@ export function MemorialView() {
   const [editingTributeId, setEditingTributeId] = useState<string | null>(null);
   const [tributeValidation, setTributeValidation] = useState<string | null>(null);
   const activeMember = members.find((member) => member.id === (selectedMemberId ?? members[0]?.id));
-  const { data: tributes = [], error: tributesError } = useTributes(activeMember?.id);
+  const { data: tributes = [], isLoading: tributesLoading, error: tributesError } = useTributes(activeMember?.id);
   const editingTribute = tributes.find((tribute) => tribute.id === editingTributeId);
   const createTribute = useCreateTribute(activeMember?.id ?? "");
   const updateTribute = useUpdateTribute(activeMember?.id ?? "", editingTributeId ?? "");
@@ -87,7 +87,7 @@ export function MemorialView() {
                 <p className="font-semibold text-muted">{member.roleInFamily ?? "Beloved family member"}</p>
               </button>
             ))}
-            {!members.length ? <p className="font-semibold text-muted">No memorial profiles yet.</p> : null}
+            {!members.length && !isLoading && !error ? <p className="font-semibold text-muted">No memorial profiles yet.</p> : null}
             {error ? <p className="font-bold text-[#C15A4A]">{error.message}</p> : null}
           </div>
         </CardContent>
@@ -135,6 +135,7 @@ export function MemorialView() {
               </CardContent>
             </Card>
           ) : null}
+          {activeMember && tributesLoading ? <Card className="md:col-span-2"><CardContent><p className="font-bold text-muted">Loading tributes...</p></CardContent></Card> : null}
           {tributesError ? <Card className="md:col-span-2"><CardContent><p className="font-bold text-[#C15A4A]">{tributesError.message}</p></CardContent></Card> : null}
           {deleteTribute.error ? <Card className="md:col-span-2"><CardContent><p className="font-bold text-[#C15A4A]">{deleteTribute.error.message}</p></CardContent></Card> : null}
           {tributes.map((tribute) => (
@@ -158,8 +159,15 @@ export function MemorialView() {
               </CardContent>
             </Card>
           ))}
-          {!tributes.length ? (
-            <Card><CardContent><p className="text-lg font-bold text-muted">No tributes yet. The first tribute will appear here.</p></CardContent></Card>
+          {activeMember && !tributesLoading && !tributesError && !tributes.length ? (
+            <Card>
+              <CardContent>
+                <p className="text-lg font-black text-ink">No tributes yet.</p>
+                <p className="mt-2 font-semibold text-muted">
+                  {isViewer ? "Tributes for this memorial profile will appear here." : "Add the first tribute from the form above."}
+                </p>
+              </CardContent>
+            </Card>
           ) : null}
         </div>
       </section>

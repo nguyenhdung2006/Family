@@ -293,6 +293,7 @@ export function FamilyTreeCanvas() {
                   <Pencil className="h-4 w-4 text-wood" />
                 </button>
               ))}
+              {!members.length ? <p className="font-semibold text-muted">No family members yet.</p> : null}
             </div>
             <div className="grid gap-2">
               {relationships.slice(0, 8).map((relationship) => {
@@ -308,7 +309,11 @@ export function FamilyTreeCanvas() {
                   </button>
                 );
               })}
-              {!relationships.length ? <p className="font-semibold text-muted">No relationships yet.</p> : null}
+              {!relationships.length ? (
+                <p className="font-semibold text-muted">
+                  {members.length < 2 ? "Add at least two members before linking relationships." : "No relationships yet."}
+                </p>
+              ) : null}
             </div>
           </div>
         </CardContent>
@@ -349,12 +354,23 @@ export function FamilyTreeCanvas() {
         </ReactFlow>
       </div>
 
-      {!members.length ? (
+      {error ? null : !members.length ? (
         <div className="absolute inset-0 grid place-items-center bg-background/70 p-6 text-center">
           <Card className="max-w-lg">
             <CardContent>
               <p className="text-2xl font-black text-ink">No family members yet</p>
-              <p className="mt-2 text-base font-semibold leading-7 text-muted">Add members from the backend/API and the graph will render them here.</p>
+              <p className="mt-2 text-base font-semibold leading-7 text-muted">
+                {isViewer ? "Family members will appear here once the tree is started." : "Add the first family member from the form above."}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : filteredMembers.length === 0 ? (
+        <div className="absolute inset-0 grid place-items-center bg-background/70 p-6 text-center">
+          <Card className="max-w-lg">
+            <CardContent>
+              <p className="text-2xl font-black text-ink">No family members match this search</p>
+              <p className="mt-2 text-base font-semibold leading-7 text-muted">Try another name, role, or branch.</p>
             </CardContent>
           </Card>
         </div>

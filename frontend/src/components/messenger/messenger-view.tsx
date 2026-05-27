@@ -150,7 +150,7 @@ export function MessengerView() {
         ) : null}
         <div className="h-[calc(100%-17rem)] overflow-y-auto p-2 hometree-scrollbar">
           {roomsLoading ? <p className="p-4 font-semibold text-muted">Loading rooms...</p> : null}
-          {roomsError ? <p className="p-4 font-bold text-[#C15A4A]">{roomsError.message}</p> : null}
+          {roomsError ? <p className="p-4 font-bold text-[#C15A4A]">We could not load rooms. {roomsError.message}</p> : null}
           {rooms.map((room) => (
             <div
               key={room.id}
@@ -173,7 +173,14 @@ export function MessengerView() {
               ) : null}
             </div>
           ))}
-          {!rooms.length ? <p className="p-4 font-semibold text-muted">No chat rooms yet.</p> : null}
+          {!roomsLoading && !roomsError && !rooms.length ? (
+            <div className="p-4">
+              <p className="font-black text-ink">No chat rooms yet.</p>
+              <p className="mt-1 font-semibold text-muted">
+                {isViewer ? "Family message rooms will appear here when you are added." : "Create the first room above to start a conversation."}
+              </p>
+            </div>
+          ) : null}
         </div>
       </aside>
 
@@ -204,8 +211,23 @@ export function MessengerView() {
               );
             })}
             {messagesLoading ? <p className="py-12 text-center text-lg font-bold text-muted">Loading messages...</p> : null}
-            {messagesError ? <p className="py-12 text-center text-lg font-bold text-[#C15A4A]">{messagesError.message}</p> : null}
-            {!messagesLoading && !messages.length ? <p className="py-12 text-center text-lg font-bold text-muted">No messages here yet.</p> : null}
+            {messagesError ? <p className="py-12 text-center text-lg font-bold text-[#C15A4A]">We could not load messages. {messagesError.message}</p> : null}
+            {!roomId && !roomsLoading ? (
+              <div className="py-12 text-center">
+                <p className="text-lg font-black text-ink">Choose a room</p>
+                <p className="font-semibold text-muted">
+                  {isViewer ? "Message rooms will appear when you are added." : "Create or choose a room to start chatting."}
+                </p>
+              </div>
+            ) : null}
+            {roomId && !messagesLoading && !messagesError && !messages.length ? (
+              <div className="py-12 text-center">
+                <p className="text-lg font-black text-ink">No messages here yet.</p>
+                <p className="font-semibold text-muted">
+                  {isViewer ? "New messages from family members will appear here." : "Send the first message below."}
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
 

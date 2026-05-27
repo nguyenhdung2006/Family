@@ -37,7 +37,7 @@ export function AlbumsGallery() {
   const [uploadState, setUploadState] = useState<UploadState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
-  const { data: media = [] } = useAlbumMedia(selectedAlbum?.id);
+  const { data: media = [], isLoading: mediaLoading, error: mediaError } = useAlbumMedia(selectedAlbum?.id);
   const selectedMedia = selectedMediaIndex !== null ? media[selectedMediaIndex] : null;
 
   const featuredAlbum = useMemo(() => selectedAlbum ?? albums[0], [albums, selectedAlbum]);
@@ -256,7 +256,7 @@ export function AlbumsGallery() {
         </Card>
       ) : null}
 
-      {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
+      {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">We could not load albums. {error.message}</p></CardContent></Card> : null}
       {deleteAlbum.error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{deleteAlbum.error.message}</p></CardContent></Card> : null}
 
       {isLoading ? <Card><CardContent><p className="font-bold text-muted">Loading albums...</p></CardContent></Card> : null}
@@ -297,8 +297,15 @@ export function AlbumsGallery() {
         ))}
       </div>
 
-      {!albums.length && !isLoading ? (
-        <Card><CardContent><p className="text-lg font-bold text-muted">No albums yet. Create one from the backend/API to begin the archive.</p></CardContent></Card>
+      {!albums.length && !isLoading && !error ? (
+        <Card>
+          <CardContent>
+            <p className="text-lg font-black text-ink">No albums yet.</p>
+            <p className="mt-2 font-semibold text-muted">
+              {isViewer ? "Family photo albums will appear here once members create them." : "Create the first album above to begin the archive."}
+            </p>
+          </CardContent>
+        </Card>
       ) : null}
 
       {featuredAlbum ? (
@@ -306,6 +313,8 @@ export function AlbumsGallery() {
           <CardContent>
             <h3 className="text-2xl font-black text-ink">{featuredAlbum.title}</h3>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {mediaLoading ? <p className="font-semibold text-muted">Loading media...</p> : null}
+              {mediaError ? <p className="font-bold text-[#C15A4A]">We could not load album media. {mediaError.message}</p> : null}
               {media.map((item, index) => (
                 <div key={item.id} className="group overflow-hidden rounded-lg bg-surface-soft text-left">
                   <button className="w-full text-left" onClick={() => setSelectedMediaIndex(index)}>
@@ -330,7 +339,11 @@ export function AlbumsGallery() {
                   </div>
                 </div>
               ))}
-              {!media.length ? <p className="font-semibold text-muted">Select an album with media to preview the gallery.</p> : null}
+              {!mediaLoading && !mediaError && !media.length ? (
+                <p className="font-semibold text-muted">
+                  {canManageFeaturedAlbum ? "No media in this album yet. Choose a file above to add one." : "No media in this album yet."}
+                </p>
+              ) : null}
             </div>
           </CardContent>
         </Card>

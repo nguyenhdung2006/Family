@@ -14,7 +14,7 @@ import type { Recipe } from "@/features/kitchen/types";
 
 export function KitchenView() {
   const { data: user } = useCurrentUser();
-  const { data: recipes = [], isLoading, error } = useRecipes();
+  const { data: recipes = [], isLoading, error, refetch } = useRecipes();
   const createRecipe = useCreateRecipe();
   const deleteRecipe = useDeleteRecipe();
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
@@ -129,7 +129,14 @@ export function KitchenView() {
       </Card>
       ) : null}
 
-      {error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{error.message}</p></CardContent></Card> : null}
+      {error ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-bold text-[#C15A4A]">We could not load recipes. {error.message}</p>
+            <Button variant="secondary" onClick={() => void refetch()}>Try again</Button>
+          </CardContent>
+        </Card>
+      ) : null}
       {deleteRecipe.error ? <Card><CardContent><p className="font-bold text-[#C15A4A]">{deleteRecipe.error.message}</p></CardContent></Card> : null}
       {isLoading ? <Card><CardContent><p className="font-bold text-muted">Loading recipes...</p></CardContent></Card> : null}
 
@@ -169,7 +176,16 @@ export function KitchenView() {
           </Card>
         ))}
       </div>
-      {!recipes.length ? <Card><CardContent><p className="text-lg font-bold text-muted">No recipes yet.</p></CardContent></Card> : null}
+      {!recipes.length && !isLoading && !error ? (
+        <Card>
+          <CardContent>
+            <p className="text-lg font-black text-ink">No recipes yet.</p>
+            <p className="mt-2 font-semibold text-muted">
+              {isViewer ? "Family recipes will appear here once members add them." : "Add the first family recipe from the form above."}
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
