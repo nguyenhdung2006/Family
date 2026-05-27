@@ -20,3 +20,7 @@ export type CreateRecipeInput = {
 };
 
 export type UpdateRecipeInput = CreateRecipeInput;
+
+export type RecipeFilters = {
+  search?: string;
+};

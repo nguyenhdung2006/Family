@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { ChefHat, Pencil, PlayCircle, Plus, Trash2, X } from "lucide-react";
+import { FormEvent, useDeferredValue, useState } from "react";
+import { ChefHat, Pencil, PlayCircle, Plus, Search, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,7 +14,9 @@ import type { Recipe } from "@/features/kitchen/types";
 
 export function KitchenView() {
   const { data: user } = useCurrentUser();
-  const { data: recipes = [], isLoading, error, refetch } = useRecipes();
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search.trim());
+  const { data: recipes = [], isLoading, error, refetch } = useRecipes({ search: deferredSearch || undefined });
   const createRecipe = useCreateRecipe();
   const deleteRecipe = useDeleteRecipe();
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export function KitchenView() {
     notesFromElders: ""
   });
   const isViewer = user?.role === "VIEWER";
+  const hasSearch = Boolean(deferredSearch);
 
   async function submitRecipe(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,6 +92,24 @@ export function KitchenView() {
           <p className="mt-3 max-w-3xl text-lg font-semibold leading-8 text-muted">
             Preserve ingredients, elder notes, cooking videos, and the small details that make a dish feel like home.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-xl font-black text-ink"><Search className="h-5 w-5" /> Find a recipe</h2>
+              <p className="mt-1 font-semibold text-muted">Search by title, description, or ingredients.</p>
+            </div>
+            {search ? <Button type="button" variant="ghost" onClick={() => setSearch("")}>Clear</Button> : null}
+          </div>
+          <Input
+            className="mt-4"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search recipes or ingredients"
+          />
         </CardContent>
       </Card>
 
@@ -179,9 +200,11 @@ export function KitchenView() {
       {!recipes.length && !isLoading && !error ? (
         <Card>
           <CardContent>
-            <p className="text-lg font-black text-ink">No recipes yet.</p>
+            <p className="text-lg font-black text-ink">{hasSearch ? "No recipes match your search." : "No recipes yet."}</p>
             <p className="mt-2 font-semibold text-muted">
-              {isViewer ? "Family recipes will appear here once members add them." : "Add the first family recipe from the form above."}
+              {hasSearch
+                ? "Try a recipe title, description, or ingredient."
+                : isViewer ? "Family recipes will appear here once members add them." : "Add the first family recipe from the form above."}
             </p>
           </CardContent>
         </Card>

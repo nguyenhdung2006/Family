@@ -23,7 +23,11 @@ public class KitchenService {
     }
 
     @Transactional(readOnly = true)
-    public List<RecipeDTO.Response> listRecipes() {
+    public List<RecipeDTO.Response> listRecipes(String search) {
+        String normalizedSearch = search == null ? "" : search.trim();
+        if (!normalizedSearch.isBlank()) {
+            return recipes.searchByText(normalizedSearch).stream().map(RecipeDTO.Response::from).toList();
+        }
         return recipes.findAll().stream().map(RecipeDTO.Response::from).toList();
     }
 

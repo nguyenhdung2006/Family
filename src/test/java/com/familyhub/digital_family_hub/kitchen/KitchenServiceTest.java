@@ -12,6 +12,7 @@ import com.familyhub.digital_family_hub.users.AppUser;
 import com.familyhub.digital_family_hub.users.AppUserRepository;
 import com.familyhub.digital_family_hub.users.UserRole;
 import java.security.Principal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,32 @@ class KitchenServiceTest {
     private final RecipeRepository recipes = mock(RecipeRepository.class);
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final KitchenService service = new KitchenService(recipes, users);
+
+    @Test
+    void listRecipesWithoutSearchUsesExistingListBehavior() {
+        Recipe recipe = recipe(UUID.randomUUID(), user(UUID.randomUUID(), "member@example.com", UserRole.MEMBER));
+        when(recipes.findAll()).thenReturn(List.of(recipe));
+
+        List<RecipeDTO.Response> responses = service.listRecipes(" ");
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().id()).isEqualTo(recipe.getId());
+        verify(recipes).findAll();
+        verify(recipes, never()).searchByText(any());
+    }
+
+    @Test
+    void listRecipesWithSearchUsesTextSearch() {
+        Recipe recipe = recipe(UUID.randomUUID(), user(UUID.randomUUID(), "member@example.com", UserRole.MEMBER));
+        when(recipes.searchByText("ginger")).thenReturn(List.of(recipe));
+
+        List<RecipeDTO.Response> responses = service.listRecipes(" ginger ");
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().id()).isEqualTo(recipe.getId());
+        verify(recipes).searchByText("ginger");
+        verify(recipes, never()).findAll();
+    }
 
     @Test
     void updateRecipeAllowsOwner() {

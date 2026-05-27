@@ -2,12 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRecipe, deleteRecipe, listRecipes, updateRecipe } from "@/features/kitchen/api";
+import type { RecipeFilters } from "@/features/kitchen/types";
 import { queryKeys } from "@/lib/api/queryKeys";
 
-export function useRecipes() {
+export function useRecipes(filters: RecipeFilters = {}) {
   return useQuery({
-    queryKey: queryKeys.recipes,
-    queryFn: listRecipes
+    queryKey: [...queryKeys.recipes, filters] as const,
+    queryFn: () => listRecipes(filters)
   });
 }
 

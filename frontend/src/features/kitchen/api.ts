@@ -1,8 +1,8 @@
 import { apiFetch } from "@/lib/api/client";
-import type { CreateRecipeInput, Recipe, UpdateRecipeInput } from "@/features/kitchen/types";
+import type { CreateRecipeInput, Recipe, RecipeFilters, UpdateRecipeInput } from "@/features/kitchen/types";
 
-export function listRecipes() {
-  return apiFetch<Recipe[]>("/api/kitchen/recipes");
+export function listRecipes(filters: RecipeFilters = {}) {
+  return apiFetch<Recipe[]>("/api/kitchen/recipes", { params: filters });
 }
 
 export function createRecipe(input: CreateRecipeInput) {
